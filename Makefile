@@ -15,11 +15,11 @@ all:
 
 	# make TrollStore tipa
 	@ln -sf build/Payload Payload
-	zip -r9 iMemScanTS.tipa Payload
+	zip -r9 TrollMemScan.tipa Payload
 	@rm -rf Payload
 
 	# Clean up build temp
 	find . -name ".DS_Store" -delete
 	@rm -rf build/Payload
 
-	@echo TrollStore .tipa written successfully as iMemScanTS.tipa
+	@echo TrollStore .tipa written successfully as TrollMemScan.tipa

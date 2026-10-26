@@ -134,14 +134,14 @@ class CustomFeatureCtrl: UIViewController, UITableViewDelegate, UITableViewDataS
         let origVal = item["originalValue"] as? String ?? ""
         let modVal = item["modifiedValue"] as? String ?? ""
         
-        // กำหนดประเภทเป็น I32 และรูปแบบการเปรียบเทียบ
-        let valueType = VMMemValueType.I32
+        // 🟢 กำหนดประเภทเป็น I32 (อ้างอิงจาก SignedInt ตามโครงสร้างของ MemModel)
+        let valueType = VMMemValueType(rawValue: VMMemValueType.RawValue(VMMemValueTypeSignedInt.rawValue))
         let comparison = VMMemComparisonEQ
         
         if isOn {
             print("[\(name)] OPEN: Search \(origVal) (I32) -> Edit to \(modVal) (I32) -> Clear")
             
-            // 🟢 1. เปิดสวิตช์: ค้นหาค่าเดิม -> แก้ไขเป็นค่าใหม่ทั้งหมด -> รีเซ็ตเคลียร์ผลลัพธ์
+            // 1. เปิดสวิตช์: ค้นหาค่าเดิม -> แก้ไขเป็นค่าใหม่ทั้งหมด -> รีเซ็ตเคลียร์ผลลัพธ์
             VMTool.share().searchValue(origVal, type: valueType, comparison: comparison) { count, array in
                 if count > 0 {
                     for model in array {
@@ -161,7 +161,7 @@ class CustomFeatureCtrl: UIViewController, UITableViewDelegate, UITableViewDataS
         } else {
             print("[\(name)] CLOSE: Search \(modVal) (I32) -> Revert to \(origVal) (I32) -> Clear")
             
-            // 🟢 2. ปิดสวิตช์: ค้นหาค่าใหม่ -> สลับกลับเป็นค่าเดิม -> รีเซ็ตเคลียร์ผลลัพธ์
+            // 2. ปิดสวิตช์: ค้นหาค่าใหม่ -> สลับกลับเป็นค่าเดิม -> รีเซ็ตเคลียร์ผลลัพธ์
             VMTool.share().searchValue(modVal, type: valueType, comparison: comparison) { count, array in
                 if count > 0 {
                     for model in array {

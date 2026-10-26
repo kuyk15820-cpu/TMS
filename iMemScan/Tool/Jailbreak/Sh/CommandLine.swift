@@ -7,7 +7,7 @@
 
 import Foundation
 
-func runCmd(path: String, args: [String]) {
+func runCmdVoid(path: String, args: [String]) {
     let task = NSTask()
     task?.launchPath = path
     task?.arguments = args

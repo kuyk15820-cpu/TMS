@@ -7,7 +7,7 @@ all:
 	xcodebuild -quiet -jobs $(shell sysctl -n hw.ncpu) -project 'iMemScan.xcodeproj' -scheme iMemScan -configuration Release -arch arm64 -sdk iphoneos -derivedDataPath $(APP_TMP) \
 		CODE_SIGNING_ALLOWED=NO DSTROOT=$(APP_TMP)/install
 		
-	ldid -Sentitlements.plist $(APP_BUNDLE_PATH)/iMemScan
+		ldid -S$(CURDIR)/entitlements.plist $(APP_BUNDLE_PATH)/iMemScan
 	rm -rf build
 	mkdir -p build/Payload
 

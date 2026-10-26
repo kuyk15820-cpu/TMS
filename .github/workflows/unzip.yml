@@ -59,8 +59,8 @@ jobs:
       # 🟢 ขั้นตอนอัปเดตชื่อแอป, Bundle ID และ Version
       - name: update app metadata (name, bundle id, version)
         env:
-          APP_NAME: ${{ github.event.inputs.app_name || 'iMemScan' }}
-          BUNDLE_ID: ${{ github.event.inputs.bundle_id || 'com.yourname.imemscan' }}
+          APP_NAME: ${{ github.event.inputs.app_name || 'TrollMemScan' }}
+          BUNDLE_ID: ${{ github.event.inputs.bundle_id || 'com.apple.TrollMemScan' }}
           APP_VERSION: ${{ github.event.inputs.app_version || '1.0.0' }}
           BUILD_NUMBER: ${{ github.event.inputs.build_number || '1' }}
         run: |

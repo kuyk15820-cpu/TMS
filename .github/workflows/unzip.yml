@@ -94,7 +94,7 @@ jobs:
           puts "Successfully updated project build settings!"
           EOF
 
-      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติ (.swift, .m, .mm, .cpp, .h) และ Header Search Paths
+      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติเฉพาะไฟล์ใหม่ (ไม่ดึงไฟล์เดิมมาแอดซ้ำซ้อน)
       - name: sync swift files and packages to xcodeproj
         run: |
           gem install xcodeproj
@@ -120,14 +120,16 @@ jobs:
             end
           end
           
-          # Sync ไฟล์ .swift, .m, .mm, .cpp และ .h เข้า Project และ Compile Sources อัตโนมัติ
-          source_phase = target.source_build_phase
-          existing_files = source_phase.files_references.compact.map(&:real_path).compact.map(&:to_s)
+          # ดึงรายชื่อไฟล์ที่มีอยู่ในโปรเจกต์และ Build Phases อยู่แล้วเพื่อข้ามการแอดซ้ำ
+          existing_file_paths = target.source_build_phase.files_references.map { |f| f.real_path.to_s rescue nil }.compact
 
           Dir.glob('**/*.{swift,m,mm,cpp,h}').each do |source_file|
             next if source_file.start_with?('Pods/', 'Build/', '.build/', 'DerivedData/')
             
             file_abs_path = File.expand_path(source_file)
+
+            # ถ้ามีไฟล์นี้อยู่แล้ว ข้ามทันทีไม่แอดซ้ำ
+            next if existing_file_paths.include?(file_abs_path)
 
             file_ref = project.files.find { |f| f.real_path.to_s == file_abs_path }
             unless file_ref
@@ -135,17 +137,15 @@ jobs:
             end
 
             if source_file.end_with?('.swift', '.m', '.mm', '.cpp')
-              unless existing_files.include?(file_abs_path) || source_phase.files_references.include?(file_ref)
-                source_phase.add_file_reference(file_ref)
-                puts "Added to compile sources: #{source_file}"
-              end
+              target.source_build_phase.add_file_reference(file_ref)
+              puts "Added new file to compile sources: #{source_file}"
             elsif source_file.end_with?('.h')
-              puts "Added header reference to project: #{source_file}"
+              puts "Added new header reference: #{source_file}"
             end
           end
 
           project.save
-          puts "Successfully synced source files!"
+          puts "Successfully synced new source files!"
           EOF
 
       # 🟢 ตั้งค่า Symbol Stripping และ Compiler Optimization ป้องกัน Reverse Engineering
@@ -179,11 +179,84 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
 
-      # 🟢 อัปโหลด Artifacts (ไฟล์ .tipa ที่ได้จาก Makefile)
-      - name: upload artifacts
+      # 🟢 อัปโหลด Artifact เฉพาะตอน Pull Request
+      - name: upload artifact (PR only)
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: TrollMemScan-TIPA
+          name: app-ipa
           path: |
-            TrollMemScan.tipa
+            *.tipa
             build/*.tipa
+
+      # 🟢 อัปโหลด Release Artifact ตอน Push เข้า Main/Master หรือกด Trigger เอง
+      - name: upload release ipa
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-ipa
+          path: |
+            *.tipa
+            build/*.tipa
+
+
+  release:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: download ipa
+        uses: actions/download-artifact@v4
+        with:
+          name: release-ipa
+          path: build/
+
+      - name: get last 12h commits
+        run: |
+          COMMITS=$(git log --since="12 hours ago" --pretty=format:"- %h %s (%an)")
+          if [ -z "$COMMITS" ]; then
+            COMMITS="no commits in the last 12 hours"
+          fi
+
+          echo "COMMITS<<EOF" >> $GITHUB_ENV
+          echo "$COMMITS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: write release notes
+        run: |
+          cat <<EOF > release_notes.txt
+          Nightly build
+          
+          Last 12 hours commits:
+          
+          ${COMMITS}
+          EOF
+
+      - name: update nightly release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view nightly >/dev/null 2>&1 || \
+          gh release create nightly \
+            --title "Nightly" \
+            --notes "initial nightly" \
+            --prerelease
+      
+          gh release edit nightly \
+            --title "Nightly" \
+            --notes-file release_notes.txt \
+            --prerelease      
+          
+          for asset in $(gh release view nightly --json assets -q '.assets[].name'); do
+            echo "Deleting old asset: $asset"
+            gh release delete-asset nightly "$asset" -y || true
+          done
+
+          gh release upload nightly build/*.tipa --clobber

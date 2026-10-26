@@ -24,7 +24,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         Audio()
         overrideUserInterfacrStyle()
         
+        // 🟢 สั่งให้ค้นหาและเซ็ต PID อัตโนมัติทันทีที่แอปเปิด (โดยเช็คจากแอปที่กำลังรันอยู่)
+        autoSetTargetProcess()
+        
         return true
+    }
+    
+    // 🟢 ฟังก์ชันค้นหาและตั้งค่า PID อัตโนมัติ
+    func autoSetTargetProcess() {
+        // ⚠️ เปลี่ยนคำนี้เป็นชื่อแอปเป้าหมายที่กำลังรันอยู่ (เช่น "FreeFire" หรือชื่อที่โชว์ในลิสต์)
+        let targetName = "FreeFire" 
+        
+        // ดึงรายการ process ทั้งหมดที่กำลังรันอยู่ผ่าน PidModel
+        guard let sections = PidModel.refreshModelArray() as? [[PidModel]] else { return }
+        
+        for section in sections {
+            for model in section {
+                if model.name.contains(targetName) {
+                    if let pidInt = Int32(model.pid) {
+                        // เซ็ต PID เข้า VMTool ทันที
+                        VMTool.share().setPid(pidInt, name: model.name)
+                        NSLog("memlog: Auto-set target PID to \(pidInt) for \(model.name)")
+                        return
+                    }
+                }
+            }
+        }
+        NSLog("memlog: Target process '\(targetName)' not found or not running.")
     }
     
     // 禁用掉第三方输入法
@@ -81,4 +107,3 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 }
-

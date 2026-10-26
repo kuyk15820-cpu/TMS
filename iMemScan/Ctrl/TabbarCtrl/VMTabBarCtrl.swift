@@ -25,19 +25,35 @@ class VMTabBarCtrl: UITabBarController {
         let titles = [
             NSLocalizedString("Processes", comment: "Process"),
             NSLocalizedString("Search", comment: "Search"),
+            NSLocalizedString("Scripts", comment: "Scripts"), // 🟢 เพิ่มชื่อแท็บสำหรับหน้าใหม่
             NSLocalizedString("Record", comment: "Record"),
             NSLocalizedString("Memory", comment: "Memory"),
             NSLocalizedString("Settings", comment: "Settings")
         ]
-        //let images = ["scope", "magnifyingglass", "square.and.pencil", "doc.text.magnifyingglass", "gear"]
-        let images = ["app.badge", "magnifyingglass", "square.and.pencil", "doc.text.magnifyingglass", "gear"]
-        let ctrls = [VMTargetCtrl.self, VMSearchCtrl.self, VMRecordCtrl.self, VMMemCtrl.self, VMSetCtrl.self]
+        
+        // ไอคอนประจำแต่ละแท็บ (เพิ่มไอคอนสำหรับหน้า Script ด้วย)
+        let images = [
+            "app.badge", 
+            "magnifyingglass", 
+            "doc.plaintext", // 🟢 ไอคอนสำหรับหน้า CustomFeatureCtrl
+            "square.and.pencil", 
+            "doc.text.magnifyingglass", 
+            "gear"
+        ]
+        
+        // คลาสของแต่ละหน้าจอ (แทรก CustomFeatureCtrl เข้าไปในลำดับที่ 3)
+        let ctrls = [
+            VMTargetCtrl.self, 
+            VMSearchCtrl.self, 
+            CustomFeatureCtrl.self, // 🟢 หน้าใหม่ที่เราเพิ่งสร้าง
+            VMRecordCtrl.self, 
+            VMMemCtrl.self, 
+            VMSetCtrl.self
+        ]
 
         var array = [UINavigationController]()
         for i in 0..<titles.count {
             let ctrl = ctrls[i].init()
-//            let config = UIImage.SymbolConfiguration.init(pointSize: 14)
-//            ctrl.tabBarItem.image = UIImage(systemName: images[i], withConfiguration: config)
             ctrl.tabBarItem.image = UIImage(systemName: images[i])
             ctrl.tabBarItem.badgeColor = .black
             ctrl.title = titles[i]

@@ -2,35 +2,188 @@ name: Build iMemScan
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main", "master" ]
   workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App Display Name'
+        required: false
+        default: 'TrollMemScan'
+      bundle_id:
+        description: 'Bundle Identifier'
+        required: false
+        default: 'com.apple.TrollMemScan'
+      app_version:
+        description: 'App Version (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
+      build_number:
+        description: 'Build Number (e.g. 1)'
+        required: false
+        default: '1'
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build iOS App (TrollStore & DEB)
     runs-on: macos-14
 
     steps:
-      - name: Checkout Repository
+      - name: checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Install Dependencies (ldid, dpkg)
+      - name: setup xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: show xcode version
+        run: xcodebuild -version
+
+      - name: install dependencies (ldid, dpkg)
         run: |
           brew install ldid dpkg
 
-      - name: Build with Make
+      # 🟢 ขั้นตอนอัปเดตชื่อแอป, Bundle ID และ Version จาก Input ของ GitHub Actions
+      - name: update app metadata (name, bundle id, version)
+        env:
+          APP_NAME: ${{ github.event.inputs.app_name || 'TrollMemScan' }}
+          BUNDLE_ID: ${{ github.event.inputs.bundle_id || 'com.apple.TrollMemScan' }}
+          APP_VERSION: ${{ github.event.inputs.app_version || '1.0.0' }}
+          BUILD_NUMBER: ${{ github.event.inputs.build_number || '1' }}
+        run: |
+          gem install xcodeproj
+          ruby << 'EOF'
+          require 'xcodeproj'
+
+          project_path = Dir.glob('*.xcodeproj').first
+          unless project_path
+            puts 'No .xcodeproj found'
+            exit 1
+          end
+
+          project = Xcodeproj::Project.open(project_path)
+          
+          app_name = ENV['APP_NAME']
+          bundle_id = ENV['BUNDLE_ID']
+          app_version = ENV['APP_VERSION']
+          build_number = ENV['BUILD_NUMBER']
+
+          puts "Updating App Configuration:"
+          puts "  - App Name: #{app_name}"
+          puts "  - Bundle ID: #{bundle_id}"
+          puts "  - Version: #{app_version}"
+          puts "  - Build Number: #{build_number}"
+
+          project.targets.each do |target|
+            target.build_configurations.each do |config|
+              config.build_settings['PRODUCT_NAME'] = app_name
+              config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = bundle_id
+              config.build_settings['MARKETING_VERSION'] = app_version
+              config.build_settings['CURRENT_PROJECT_VERSION'] = build_number
+              config.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = app_name
+            end
+          end
+
+          project.save
+          puts "Successfully updated project build settings!"
+          EOF
+
+      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติ (.swift, .m, .mm, .cpp, .h) และ Header Search Paths
+      - name: sync swift files and packages to xcodeproj
+        run: |
+          gem install xcodeproj
+          ruby << 'EOF'
+          require 'xcodeproj'
+          
+          project_path = Dir.glob('*.xcodeproj').first
+          unless project_path
+            puts 'No .xcodeproj found'
+            exit 1
+          end
+
+          project = Xcodeproj::Project.open(project_path)
+          target = project.targets.first
+
+          # เพิ่ม Header Search Paths ให้ค้นหาไฟล์ .h ในทุกโฟลเดอร์ย่อยอัตโนมัติ
+          target.build_configurations.each do |config|
+            config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited)'
+            paths = config.build_settings['HEADER_SEARCH_PATHS']
+            paths = [paths] if paths.is_a?(String)
+            unless paths.include?('$(SRCROOT)/**')
+              config.build_settings['HEADER_SEARCH_PATHS'] = paths + ['$(SRCROOT)/**']
+            end
+          end
+          
+          # Sync ไฟล์ .swift, .m, .mm, .cpp และ .h เข้า Project และ Compile Sources อัตโนมัติ
+          source_phase = target.source_build_phase
+          existing_files = source_phase.files_references.compact.map(&:real_path).compact.map(&:to_s)
+
+          Dir.glob('**/*.{swift,m,mm,cpp,h}').each do |source_file|
+            next if source_file.start_with?('Pods/', 'Build/', '.build/', 'DerivedData/')
+            
+            file_abs_path = File.expand_path(source_file)
+
+            file_ref = project.files.find { |f| f.real_path.to_s == file_abs_path }
+            unless file_ref
+              file_ref = project.main_group.new_file(source_file)
+            end
+
+            if source_file.end_with?('.swift', '.m', '.mm', '.cpp')
+              unless existing_files.include?(file_abs_path) || source_phase.files_references.include?(file_ref)
+                source_phase.add_file_reference(file_ref)
+                puts "Added to compile sources: #{source_file}"
+              end
+            elsif source_file.end_with?('.h')
+              puts "Added header reference to project: #{source_file}"
+            end
+          end
+
+          project.save
+          puts "Successfully synced source files!"
+          EOF
+
+      # 🟢 ตั้งค่า Symbol Stripping และ Compiler Optimization ป้องกัน Reverse Engineering
+      - name: setup obfuscation & security flags
+        run: |
+          ruby << 'EOF'
+          require 'xcodeproj'
+          project_path = Dir.glob('*.xcodeproj').first
+          project = Xcodeproj::Project.open(project_path)
+          
+          project.targets.each do |target|
+            target.build_configurations.each do |config|
+              config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'YES'
+              config.build_settings['DEPLOYMENT_POSTPROCESSING'] = 'YES'
+              config.build_settings['STRIP_STYLE'] = 'all'
+              
+              config.build_settings['SWIFT_OPTIMIZATION_LEVEL'] = '-O'
+              config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
+              config.build_settings['OTHER_SWIFTC_FLAGS'] ||= '$(inherited)'
+              config.build_settings['OTHER_SWIFTC_FLAGS'] += ' -Xfrontend -empty-abi-descriptor'
+            end
+          end
+          project.save
+          puts "Successfully applied Symbol Stripping & Security Flags"
+          EOF
+
+      # 🟢 สั่งรัน Makefile เพื่อคอมไพล์และแพ็กไฟล์ .tipa ตามต้องการ
+      - name: build with makefile
         run: |
           make
         env:
           TMPDIR: ${{ runner.temp }}
 
-      - name: Upload Artifacts
+      # 🟢 อัปโหลด Artifacts (ไฟล์ .tipa ที่ได้จาก Makefile)
+      - name: upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: iMemScan-Artifacts
+          name: iMemScan-TIPA
           path: |
             iMemScanTS.tipa
-            build/AppIndex.deb
-            build/AppIndexRootless.deb
+            build/*.tipa

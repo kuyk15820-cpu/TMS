@@ -9,11 +9,11 @@ on:
       app_name:
         description: 'App Display Name'
         required: false
-        default: 'iMemScan'
+        default: 'TrollMemScan'
       bundle_id:
         description: 'Bundle Identifier'
         required: false
-        default: 'com.yourname.imemscan'
+        default: 'com.apple.TrollMemScan'
       app_version:
         description: 'App Version (e.g. 1.0.0)'
         required: false

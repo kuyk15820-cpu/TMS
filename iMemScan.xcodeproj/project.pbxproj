@@ -1618,7 +1618,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zSaaiq.iMemScan;
+				PRODUCT_BUNDLE_IDENTIFIER = com.apple.TrollMemScan;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "iMemScan/iMemScan-Bridging-Header.h";
@@ -1647,7 +1647,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zSaaiq.iMemScan;
+				PRODUCT_BUNDLE_IDENTIFIER = com.apple.TrollMemScan;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "iMemScan/iMemScan-Bridging-Header.h";

@@ -1,59 +1,36 @@
-name: Build & Release iMemScanTS
+name: Build iMemScan
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
-      - master # ปรับตามชื่อ branch หลักใน GitHub ของคุณ
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
-  build-and-release:
+  build:
+    name: Build iOS App (TrollStore & DEB)
     runs-on: macos-14
+
     steps:
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '15.4'
-
       - name: Checkout Repository
-        uses: actions/checkout@v4.1.1
-        with:
-          submodules: recursive
+        uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Dependencies (ldid, dpkg)
         run: |
-          echo /usr/local/opt/make/libexec/gnubin >> $GITHUB_PATH
-          echo /opt/homebrew/opt/make/libexec/gnubin >> $GITHUB_PATH
-          # สำหรับโปรเจกต์นี้ ldid-procursus สำคัญที่สุด เพราะเอาไว้ Sign Entitlements
-          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install ldid-procursus make
+          brew install ldid dpkg
 
-      - name: Build TIPA Package
+      - name: Build with Make
         run: |
-          # รัน make ตามที่ระบุไว้ใน Makefile ของโปรเจกต์
           make
-          
-          # สร้างโฟลเดอร์สำหรับแยกไฟล์เอาไป Upload/Release
-          mkdir -p output
-          if [ -f iMemScanTS.tipa ]; then
-            cp iMemScanTS.tipa output/
-          else
-            echo "Error: iMemScanTS.tipa not found!"
-            exit 1
-          fi
+        env:
+          TMPDIR: ${{ runner.temp }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: iMemScanTS-Build
-          path: output/
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }} # ใช้เลข run number ของ GitHub ตั้งเป็นเวอร์ชันชั่วคราว
-          name: iMemScanTS Build #${{ github.run_number }}
-          draft: false
-          prerelease: false
-          files: |
-            output/iMemScanTS.tipa
+          name: iMemScan-Artifacts
+          path: |
+            iMemScanTS.tipa
+            build/AppIndex.deb
+            build/AppIndexRootless.deb

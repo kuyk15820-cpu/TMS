@@ -45,16 +45,9 @@ jobs:
       - name: show xcode version
         run: xcodebuild -version
 
-      - name: install ldid, dpkg & swiftsecretkeys
+      - name: install ldid & dpkg
         run: |
           brew install ldid dpkg
-          git clone https://github.com/MatheusMBispo/SwiftSecretKeys.git /tmp/SwiftSecretKeys
-          cd /tmp/SwiftSecretKeys
-          swift build -c release
-          sudo cp .build/release/sskeys /usr/local/bin/
-
-      - name: generate secret keys
-        run: sskeys generate
 
       # 🟢 ขั้นตอนอัปเดตชื่อแอป, Bundle ID และ Version
       - name: update app metadata (name, bundle id, version)
@@ -127,8 +120,6 @@ jobs:
             end
           end
 
-          # (คุณสามารถเพิ่ม/ลด Swift Packages ตรงนี้ได้ตามต้องการ หากโปรเจคใช้เหมือนเดิมสามารถปล่อยไว้ได้เลย)
-          
           # Sync ไฟล์ .swift, .m, .mm, .cpp และ .h เข้า Project และ Compile Sources อัตโนมัติ
           source_phase = target.source_build_phase
           existing_files = source_phase.files_references.compact.map(&:real_path).compact.map(&:to_s)
@@ -180,7 +171,7 @@ jobs:
           puts "Successfully applied Symbol Stripping & Security Flags"
           EOF
 
-      # 🟢 สั่งรัน Makefile (แทนสคริปต์เดิม)
+      # 🟢 สั่งรัน Makefile
       - name: build with makefile
         run: |
           make all

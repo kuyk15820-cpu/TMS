@@ -1,4 +1,4 @@
-name: Build iMemScan
+name: Build TrollMemScan
 
 on:
   push:
@@ -9,11 +9,11 @@ on:
       app_name:
         description: 'App Display Name'
         required: false
-        default: 'iMemScan'
+        default: 'TrollMemScan'
       bundle_id:
         description: 'Bundle Identifier'
         required: false
-        default: 'com.apple.iMemScan'
+        default: 'com.apple.TrollMemScan'
       app_version:
         description: 'App Version (e.g. 1.0.0)'
         required: false
@@ -52,8 +52,8 @@ jobs:
       # 🟢 ขั้นตอนอัปเดตชื่อแอป, Bundle ID และ Version จาก Input ของ GitHub Actions
       - name: update app metadata (name, bundle id, version)
         env:
-          APP_NAME: ${{ github.event.inputs.app_name || 'iMemScan' }}
-          BUNDLE_ID: ${{ github.event.inputs.bundle_id || 'com.apple.iMemScan' }}
+          APP_NAME: ${{ github.event.inputs.app_name || 'TrollMemScan' }}
+          BUNDLE_ID: ${{ github.event.inputs.bundle_id || 'com.apple.TrollMemScan' }}
           APP_VERSION: ${{ github.event.inputs.app_version || '1.0.0' }}
           BUILD_NUMBER: ${{ github.event.inputs.build_number || '1' }}
         run: |
@@ -183,7 +183,7 @@ jobs:
       - name: upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: iMemScan-TIPA
+          name: TrollMemScan-TIPA
           path: |
-            iMemScanTS.tipa
+            TrollMemScan.tipa
             build/*.tipa

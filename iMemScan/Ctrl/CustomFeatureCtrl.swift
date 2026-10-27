@@ -55,9 +55,6 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var showingAddAlert: Bool = false
     @Published var isEditingAnyField: Bool = false
     
-    // 🟢 ตัวแปรเปิด/ปิดเพื่อบังคับให้ SwiftUI วาด Layout ของ ScrollView ใหม่
-    @Published var keyboardTrigger: Bool = false
-    
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
     
@@ -79,6 +76,7 @@ class ScriptManagerViewModel: ObservableObject {
 class CustomFeatureCtrl: UIViewController {
 
     var viewModel = ScriptManagerViewModel()
+    var hostingController: UIHostingController<ScriptManagerView>?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -88,30 +86,16 @@ class CustomFeatureCtrl: UIViewController {
         viewModel.parentVC = self
         
         let scriptView = ScriptManagerView(viewModel: viewModel)
-        let hostingController = UIHostingController(rootView: scriptView)
-        addChild(hostingController)
-        hostingController.view.frame = view.bounds
-        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(hostingController.view)
-        hostingController.didMove(toParent: self)
+        let hostingCtrl = UIHostingController(rootView: scriptView)
+        self.hostingController = hostingCtrl
+        
+        addChild(hostingCtrl)
+        hostingCtrl.view.frame = view.bounds
+        hostingCtrl.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(hostingCtrl.view)
+        hostingCtrl.didMove(toParent: self)
         
         updateNavigationButtons(isEditingField: false)
-        
-        // 🟢 ลงทะเบียนฟังสถานะตอนคีย์บอร์ดกำลังจะปิด เพื่อบังคับเคลียร์ช่องว่างค้างด้านล่าง
-        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
-    }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    @objc func keyboardWillHide() {
-        DispatchQueue.main.async {
-            // สลับสถานะตัวแปรเพื่อให้ ScrollView ใน SwiftUI ทำการ Re-render พื้นที่ใหม่ทันที
-            self.viewModel.keyboardTrigger.toggle()
-            self.view.setNeedsLayout()
-            self.view.layoutIfNeeded()
-        }
     }
 
     // จัดการแสดงปุ่มบนขวา: ปุ่ม + อยู่ขวาบนสุดเสมอ, ถ้าพิมพ์อยู่จะมีปุ่ม "เสร็จสิ้น" เลื่อนมาอยู่ทางซ้าย
@@ -134,6 +118,12 @@ class CustomFeatureCtrl: UIViewController {
         view.endEditing(true) // ปิดคีย์บอร์ดทั้งหมด
         viewModel.isEditingAnyField = false
         updateNavigationButtons(isEditingField: false)
+        
+        // 🟢 บังคับให้ UIKit รีเฟรชกรอบมุมมอง (Frame) ทันที เพื่อดึงพื้นที่ขอบล่างกลับมาโดยที่ ScrollView ไม่อนุญาตให้หน้าจอดีดกลับไปบนสุด
+        UIView.performWithoutAnimation {
+            self.view.setNeedsLayout()
+            self.view.layoutIfNeeded()
+        }
     }
 }
 
@@ -340,8 +330,6 @@ struct ScriptManagerView: View {
                 }
                 .padding(.vertical)
             }
-            // 🟢 ผูก ID เข้ากับ keyboardTrigger เพื่อบังคับเคลียร์พื้นที่ว่างเมื่อคีย์บอร์ดปิด
-            .id(viewModel.keyboardTrigger)
             .onAppear {
                 viewModel.scrollToProxy = proxy
                 loadFromJson()

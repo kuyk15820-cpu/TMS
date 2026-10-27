@@ -40,12 +40,13 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// Custom Outlined Text Field UI (พร้อมปุ่ม Clear และ Paste จากคลิปบอร์ด)
+// Custom Outlined Text Field UI (ปุ่มเดียวสลับระหว่าง Clear กับ Paste + ปรับขนาดให้เท่ากันทุกสถานะ)
 struct OutlinedTextField: View {
     let title: String
     let placeholder: String
     @Binding var text: String
     var isDisabled: Bool = false
+    @FocusState var isFocused: Bool
     
     var body: some View {
         ZStack(alignment: .leading) {
@@ -53,31 +54,35 @@ struct OutlinedTextField: View {
                 TextField(placeholder, text: $text)
                     .keyboardType(.numberPad)
                     .font(.system(size: 14, design: .monospaced))
+                    .focused($isFocused)
                     .disabled(isDisabled)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("เสร็จสิ้น (Done)") {
+                                isFocused = false
+                            }
+                        }
+                    }
                 
-                // ปุ่ม Clear (แสดงเฉพาะตอนที่มีข้อความและยังไม่ถูกล็อค)
-                if !text.isEmpty && !isDisabled {
+                // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
+                if !isDisabled {
                     Button(action: {
-                        text = ""
+                        if !text.isEmpty {
+                            text = ""
+                        } else {
+                            if let clipboardString = UIPasteboard.general.string {
+                                text = clipboardString
+                            }
+                        }
                     }) {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: !text.isEmpty ? "xmark.circle.fill" : "doc.on.clipboard")
                             .foregroundColor(.secondary)
                     }
                 }
-                
-                // ปุ่ม Paste จากคลิปบอร์ด (แสดงเฉพาะตอนยังไม่ถูกล็อค)
-                if !isDisabled {
-                    Button(action: {
-                        if let clipboardString = UIPasteboard.general.string {
-                            text = clipboardString
-                        }
-                    }) {
-                        Image(systemName: "doc.on.clipboard")
-                            .foregroundColor(.accentColor)
-                    }
-                }
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .frame(height: 48) // ล็อคความสูงให้เท่ากันเป๊ะทั้งตอนพิมพ์และตอนล็อก
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(isDisabled ? Color.secondary.opacity(0.2) : Color.secondary.opacity(0.5), lineWidth: 1)
@@ -91,9 +96,9 @@ struct OutlinedTextField: View {
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 4)
                 .background(Color(.systemBackground))
-                .offset(x: 10, y: -20)
+                .offset(x: 10, y: -24)
         }
-        .padding(.top, 8)
+        .padding(.top, 12)
     }
 }
 
@@ -102,6 +107,7 @@ struct ScriptManagerView: View {
     @State private var features: [ScriptFeature] = []
     @State private var showingAddAlert = false
     @State private var newName = ""
+    @State private var isMenuExpanded = false // สถานะป้องกันการสัมผัสตอนเปิดเมนูสามจุด
     
     // คำนวณจำนวนฟีเจอร์ทั้งหมด และจำนวนที่เปิดใช้งานอยู่
     var totalCount: Int { features.count }
@@ -109,101 +115,113 @@ struct ScriptManagerView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // แคปซูลแสดงแถบสถานะ (Capsule Status Header)
-                    HStack(spacing: 8) {
-                        Image(systemName: "cpu")
-                            .foregroundColor(.accentColor)
-                        Text("รายการฟีเจอร์: \(totalCount)")
-                        Text("|")
-                            .foregroundColor(.secondary)
-                        Text("ใช้งานอยู่: \(activeCount)")
-                            .foregroundColor(activeCount > 0 ? .green : .secondary)
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(Capsule())
-                    .padding(.top, 8)
-                    
-                    LazyVStack(spacing: 16) {
-                        ForEach($features) { $feature in
-                            VStack(alignment: .leading, spacing: 14) {
-                                // ส่วนหัวการ์ด: ชื่อฟีเจอร์ และ เมนูสามจุดด้านขวา
-                                HStack {
-                                    Text(feature.name)
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    
-                                    Spacer()
-                                    
-                                    // เมนูสามจุดสำหรับลบฟีเจอร์
-                                    Menu {
-                                        Button(role: .destructive, action: {
-                                            if let index = features.firstIndex(where: { $0.id == feature.id }) {
-                                                features.remove(at: index)
-                                                saveToJson()
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // แคปซูลแสดงแถบสถานะ (Capsule Status Header)
+                        HStack(spacing: 8) {
+                            Image(systemName: "cpu")
+                                .foregroundColor(.accentColor)
+                            Text("รายการฟีเจอร์: \(totalCount)")
+                            Text("|")
+                                .foregroundColor(.secondary)
+                            Text("ใช้งานอยู่: \(activeCount)")
+                                .foregroundColor(activeCount > 0 ? .green : .secondary)
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(Capsule())
+                        .padding(.top, 8)
+                        
+                        LazyVStack(spacing: 16) {
+                            ForEach($features) { $feature in
+                                VStack(alignment: .leading, spacing: 14) {
+                                    // ส่วนหัวการ์ด: ชื่อฟีเจอร์ และ เมนูสามจุดด้านขวา
+                                    HStack {
+                                        Text(feature.name)
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                        
+                                        Spacer()
+                                        
+                                        // เมนูสามจุดสำหรับลบฟีเจอร์ พร้อมบล็อกหน้าจอชั่วคราว
+                                        Menu {
+                                            Button(role: .destructive, action: {
+                                                isMenuExpanded = false
+                                                if let index = features.firstIndex(where: { $0.id == feature.id }) {
+                                                    features.remove(at: index)
+                                                    saveToJson()
+                                                }
+                                            }) {
+                                                Label("ลบฟีเจอร์นี้", systemImage: "trash")
                                             }
-                                        }) {
-                                            Label("ลบฟีเจอร์นี้", systemImage: "trash")
+                                        } label: {
+                                            Image(systemName: "ellipsis")
+                                                .font(.system(size: 16, weight: .bold))
+                                                .foregroundColor(.secondary)
+                                                .padding(6)
+                                        }čne: {
+                                            // ปิด Menu ดักจับสถานะ
                                         }
-                                    } label: {
-                                        Image(systemName: "ellipsis")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundColor(.secondary)
-                                            .padding(6)
+                                        .simultaneousGesture(TapGesture().onEnded {
+                                            isMenuExpanded = true
+                                        })
                                     }
-                                }
-                                
-                                // ช่องกรอก Original และ Modified แบบ Outlined TextField (ล็อคการพิมพ์เมื่อ Save แล้ว)
-                                VStack(spacing: 14) {
-                                    OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved)
-                                        .onChange(of: feature.originalValue) { _ in
-                                            if !feature.isSaved { saveToJson() }
-                                        }
                                     
-                                    OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved)
-                                        .onChange(of: feature.modifiedValue) { _ in
-                                            if !feature.isSaved { saveToJson() }
-                                        }
+                                    // ช่องกรอก Original และ Modified แบบ Outlined TextField
+                                    VStack(spacing: 14) {
+                                        OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved)
+                                            .onChange(of: feature.originalValue) { _ in
+                                                if !feature.isSaved { saveToJson() }
+                                            }
+                                        
+                                        OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved)
+                                            .onChange(of: feature.modifiedValue) { _ in
+                                                if !feature.isSaved { saveToJson() }
+                                            }
+                                    }
+                                    .padding(.horizontal, 4)
+                                    
+                                    // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
+                                    Button(action: {
+                                        handleButtonAction(for: &feature)
+                                    }) {
+                                        Text(buttonTitle(for: feature))
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 10)
+                                            .background(buttonBackgroundColor(for: feature))
+                                            .foregroundColor(.white)
+                                            .cornerRadius(8)
+                                    }
+                                    .disabled(!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))
+                                    .opacity((!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)) ? 0.5 : 1.0)
                                 }
-                                .padding(.horizontal, 4)
-                                
-                                // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
-                                Button(action: {
-                                    handleButtonAction(for: &feature)
-                                }) {
-                                    Text(buttonTitle(for: feature))
-                                        .font(.subheadline)
-                                        .fontWeight(.bold)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .background(buttonBackgroundColor(for: feature))
-                                        .foregroundColor(.white)
-                                        .cornerRadius(8)
-                                }
-                                .disabled(!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))
-                                .opacity((!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)) ? 0.5 : 1.0)
+                                .padding()
+                                .background(Color(.systemBackground))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                                )
+                                .padding(.horizontal)
                             }
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                            )
-                            .padding(.horizontal)
                         }
                     }
+                    .padding(.vertical)
                 }
-                .padding(.vertical)
-            }
-            // แตะพื้นที่ว่างเพื่อซ่อนคีย์บอร์ด
-            .contentShape(Rectangle())
-            .onTapGesture {
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                
+                // เลเยอร์โปร่งแสงบล็อกการสัมผัสชั่วคราวเวลาเมนูสามจุดถูกเปิดขึ้นมา
+                if isMenuExpanded {
+                    Color.black.opacity(0.001)
+                        .edgesIgnoringSafeArea(.all)
+                        .onTapGesture {
+                            isMenuExpanded = false
+                        }
+                }
             }
             .navigationBarItems(trailing: Button(action: {
                 showingAddAlert = true
@@ -252,13 +270,11 @@ struct ScriptManagerView: View {
     // จัดการการกดปุ่ม (ตรวจสอบความยาวอย่างน้อย 9 ตัวเลข -> บันทึก/ล็อคฟิลด์ -> สลับเปิด/ปิดใช้งาน)
     func handleButtonAction(for feature: inout ScriptFeature) {
         if !feature.isSaved {
-            // เช็คความยาวอย่างน้อย 9 ตัวเลขทั้ง 2 ช่อง
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
                 saveToJson()
             }
         } else {
-            // บันทึกแล้ว สลับสถานะ Enable / Disable
             feature.isEnabled.toggle()
             saveToJson()
             executeVMTool(original: feature.originalValue, modified: feature.modifiedValue, isApply: feature.isEnabled)

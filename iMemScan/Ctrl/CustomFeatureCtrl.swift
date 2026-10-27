@@ -64,6 +64,15 @@ struct OutlinedTextField: View {
                     .font(.system(size: 14, design: .monospaced))
                     .focused($isFocused)
                     .disabled(isDisabled)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("เสร็จสิ้น") {
+                                HapticManager.trigger(.light)
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
+                        }
+                    }
                 
                 // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
                 if !isDisabled {
@@ -107,7 +116,6 @@ struct OutlinedTextField: View {
 struct FeatureCardView: View {
     @Binding var feature: ScriptFeature
     var onDelete: () -> Void
-    @Binding var isMenuExpanded: Bool
     var onAction: () -> Void
     var onSaveChange: () -> Void
     
@@ -124,7 +132,6 @@ struct FeatureCardView: View {
                 Menu {
                     Button(role: .destructive, action: {
                         HapticManager.trigger(.heavy)
-                        isMenuExpanded = false
                         onDelete()
                     }) {
                         Label("ลบฟีเจอร์นี้", systemImage: "trash")
@@ -137,7 +144,6 @@ struct FeatureCardView: View {
                 }
                 .simultaneousGesture(TapGesture().onEnded {
                     HapticManager.trigger(.light)
-                    isMenuExpanded = true
                 })
             }
             
@@ -204,87 +210,60 @@ struct ScriptManagerView: View {
     @State private var features: [ScriptFeature] = []
     @State private var showingAddAlert = false
     @State private var newName = ""
-    @State private var isMenuExpanded = false
     
     var totalCount: Int { features.count }
     var activeCount: Int { features.filter { $0.isEnabled }.count }
     
     var body: some View {
         NavigationView {
-            ZStack {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // แคปซูลแสดงแถบสถานะ
-                        HStack(spacing: 8) {
-                            Image(systemName: "cpu")
-                                .foregroundColor(.accentColor)
-                            Text("รายการฟีเจอร์: \(totalCount)")
-                            Text("|")
-                                .foregroundColor(.secondary)
-                            Text("ใช้งานอยู่: \(activeCount)")
-                                .foregroundColor(activeCount > 0 ? .green : .secondary)
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(Capsule())
-                        .padding(.top, 8)
-                        
-                        LazyVStack(spacing: 16) {
-                            ForEach($features) { $feature in
-                                FeatureCardView(
-                                    feature: $feature,
-                                    onDelete: {
-                                        if let index = features.firstIndex(where: { $0.id == feature.id }) {
-                                            features.remove(at: index)
-                                            saveToJson()
-                                        }
-                                    },
-                                    isMenuExpanded: $isMenuExpanded,
-                                    onAction: {
-                                        handleButtonAction(for: &feature)
-                                    },
-                                    onSaveChange: {
+            ScrollView {
+                VStack(spacing: 16) {
+                    // แคปซูลแสดงแถบสถานะ
+                    HStack(spacing: 8) {
+                        Image(systemName: "cpu")
+                            .foregroundColor(.accentColor)
+                        Text("รายการฟีเจอร์: \(totalCount)")
+                        Text("|")
+                            .foregroundColor(.secondary)
+                        Text("ใช้งานอยู่: \(activeCount)")
+                            .foregroundColor(activeCount > 0 ? .green : .secondary)
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(Capsule())
+                    .padding(.top, 8)
+                    
+                    LazyVStack(spacing: 16) {
+                        ForEach($features) { $feature in
+                            FeatureCardView(
+                                feature: $feature,
+                                onDelete: {
+                                    if let index = features.firstIndex(where: { $0.id == feature.id }) {
+                                        features.remove(at: index)
                                         saveToJson()
                                     }
-                                )
-                            }
+                                },
+                                onAction: {
+                                    handleButtonAction(for: &feature)
+                                },
+                                onSaveChange: {
+                                    saveToJson()
+                                }
+                            )
                         }
                     }
-                    .padding(.vertical)
                 }
-                
-                // เลเยอร์โปร่งแสงบล็อกการสัมผัสชั่วคราวเวลาเมนูสามจุดเปิดขึ้นมา
-                if isMenuExpanded {
-                    Color.black.opacity(0.001)
-                        .edgesIgnoringSafeArea(.all)
-                        .onTapGesture {
-                            isMenuExpanded = false
-                        }
-                }
+                .padding(.vertical)
             }
-            .toolbar {
-                // ปุ่ม + เพิ่มฟีเจอร์ที่มุมขวาบนของ Navigation Bar ตามระบบ
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        HapticManager.trigger(.light)
-                        showingAddAlert = true
-                    }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                    }
-                }
-                
-                // ปุ่มเสร็จสิ้น (Done) บน Keyboard Toolbar สำหรับปิดคีย์บอร์ด
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("เสร็จสิ้น") {
-                        HapticManager.trigger(.light)
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                    }
-                }
-            }
+            .navigationBarItems(trailing: Button(action: {
+                HapticManager.trigger(.light)
+                showingAddAlert = true
+            }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title2)
+            })
             .alert("Add Script Feature", isPresented: $showingAddAlert) {
                 TextField("Feature Name (e.g. GodMode)", text: $newName)
                 Button("Add") {
@@ -296,6 +275,8 @@ struct ScriptManagerView: View {
                         newName = ""
                     }
                 }
+                .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                
                 Button("Cancel", role: .cancel) { newName = "" }
             } message: {
                 Text("Enter a name for your custom I32 feature.")

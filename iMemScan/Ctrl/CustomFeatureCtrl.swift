@@ -40,15 +40,15 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// Helper สำหรับสั่น (Haptic Feedback)
+// Helper สำหรับสั่น (Haptic Feedback) - ใช้ FeedbackStyle ที่ถูกต้อง
 struct HapticManager {
-    static func trigger(_ style: UIImpactFeedbackGenerator.Style = .medium) {
+    static func trigger(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
         let generator = UIImpactFeedbackGenerator(style: style)
         generator.impactOccurred()
     }
 }
 
-// Custom Outlined Text Field UI (พร้อมปุ่ม Clear/Paste + ปุ่ม Done บน Navigation Bar ตอนพิมพ์)
+// Custom Outlined Text Field UI (ปุ่มเดียวสลับระหว่าง Clear กับ Paste + ขนาดเท่ากันทุกสถานะ)
 struct OutlinedTextField: View {
     let title: String
     let placeholder: String
@@ -205,7 +205,6 @@ struct ScriptManagerView: View {
     @State private var showingAddAlert = false
     @State private var newName = ""
     @State private var isMenuExpanded = false
-    @FocusState private var isAnyFieldFocused: Bool
     
     var totalCount: Int { features.count }
     var activeCount: Int { features.filter { $0.isEnabled }.count }
@@ -272,12 +271,12 @@ struct ScriptManagerView: View {
                         HapticManager.trigger(.light)
                         showingAddAlert = true
                     }) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
                     }
                 }
                 
-                // ปุ่มเสร็จสิ้น (Done) ที่มุมขวาบนเฉพาะตอนเปิดคีย์บอร์ดพิมพ์อยู่
+                // ปุ่มเสร็จสิ้น (Done) บน Keyboard Toolbar สำหรับปิดคีย์บอร์ด
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("เสร็จสิ้น") {

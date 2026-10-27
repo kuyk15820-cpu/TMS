@@ -23,20 +23,33 @@ struct ScriptFeature: Identifiable, Codable {
     }
 }
 
+// ViewModel เพื่อใช้แชร์สถานะระหว่าง UIKit และ SwiftUI ได้อย่างแม่นยำ
+class ScriptManagerViewModel: ObservableObject {
+    @Published var features: [ScriptFeature] = []
+    @Published var showingAddAlert: Bool = false
+    @Published var isEditingAnyField: Bool = false
+    
+    weak var parentVC: CustomFeatureCtrl?
+    
+    func updateEditingState() {
+        DispatchQueue.main.async {
+            self.parentVC?.updateNavigationButtons(isEditingField: self.isEditingAnyField)
+        }
+    }
+}
+
 class CustomFeatureCtrl: UIViewController {
 
-    var scriptManagerViewRef: ScriptManagerView?
+    var viewModel = ScriptManagerViewModel()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         navigationItem.title = "TrollMemScan"
         view.backgroundColor = .systemBackground
         
-        // 🟢 เปลี่ยนจาก let เป็น var เพื่อให้สามารถกำหนดค่า parentVC ได้
-        var scriptView = ScriptManagerView()
-        self.scriptManagerViewRef = scriptView
-        scriptView.parentVC = self
+        viewModel.parentVC = self
         
+        let scriptView = ScriptManagerView(viewModel: viewModel)
         let hostingController = UIHostingController(rootView: scriptView)
         addChild(hostingController)
         hostingController.view.frame = view.bounds
@@ -47,7 +60,7 @@ class CustomFeatureCtrl: UIViewController {
         updateNavigationButtons(isEditingField: false)
     }
 
-    // จัดการแสดงปุ่มบนขวา: ปุ่ม + อยู่ขวาบนสุดเสมอ, ถ้าพิมพ์อยู่จะมีปุ่ม "เสร็จสิ้น" เลื่อนมาอยู่ทางซ้ายของปุ่ม +
+    // จัดการแสดงปุ่มบนขวา: ปุ่ม + อยู่ขวาบนสุดเสมอ, ถ้าพิมพ์อยู่จะมีปุ่ม "เสร็จสิ้น" เลื่อนมาอยู่ทางซ้าย
     func updateNavigationButtons(isEditingField: Bool) {
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus.circle.fill"), style: .plain, target: self, action: #selector(didTapAddButton))
         
@@ -61,12 +74,13 @@ class CustomFeatureCtrl: UIViewController {
 
     @objc func didTapAddButton() {
         HapticManager.trigger(.light)
-        scriptManagerViewRef?.showingAddAlert = true
+        viewModel.showingAddAlert = true
     }
 
     @objc func didTapDoneButton() {
         HapticManager.trigger(.light)
-        view.endEditing(true) // ปิดคีย์บอร์ด
+        view.endEditing(true) // ปิดคีย์บอร์ดทั้งหมด
+        viewModel.isEditingAnyField = false
         updateNavigationButtons(isEditingField: false)
     }
 }
@@ -85,7 +99,7 @@ struct OutlinedTextField: View {
     let placeholder: String
     @Binding var text: String
     var isDisabled: Bool = false
-    var onFocusChanged: (Bool) -> Void
+    @ObservedObject var viewModel: ScriptManagerViewModel
     @FocusState var isFocused: Bool
     
     var body: some View {
@@ -97,7 +111,10 @@ struct OutlinedTextField: View {
                     .focused($isFocused)
                     .disabled(isDisabled)
                     .onChange(of: isFocused) { focused in
-                        onFocusChanged(focused)
+                        if focused {
+                            viewModel.isEditingAnyField = true
+                            viewModel.updateEditingState()
+                        }
                     }
                 
                 // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
@@ -141,10 +158,10 @@ struct OutlinedTextField: View {
 // Sub-view สำหรับการ์ดแต่ละรายการ
 struct FeatureCardView: View {
     @Binding var feature: ScriptFeature
+    @ObservedObject var viewModel: ScriptManagerViewModel
     var onDelete: () -> Void
     var onAction: () -> Void
     var onSaveChange: () -> Void
-    var onFocusChanged: (Bool) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -176,12 +193,12 @@ struct FeatureCardView: View {
             
             // ช่องกรอก Original และ Modified แบบ Outlined TextField
             VStack(spacing: 14) {
-                OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved, onFocusChanged: onFocusChanged)
+                OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved, viewModel: viewModel)
                     .onChange(of: feature.originalValue) { _ in
                         if !feature.isSaved { onSaveChange() }
                     }
                 
-                OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved, onFocusChanged: onFocusChanged)
+                OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved, viewModel: viewModel)
                     .onChange(of: feature.modifiedValue) { _ in
                         if !feature.isSaved { onSaveChange() }
                     }
@@ -234,14 +251,11 @@ struct FeatureCardView: View {
 
 // SwiftUI Implementation with Custom UI Design
 struct ScriptManagerView: View {
-    @State private var features: [ScriptFeature] = []
-    @State var showingAddAlert = false
+    @ObservedObject var viewModel: ScriptManagerViewModel
     @State private var newName = ""
     
-    weak var parentVC: CustomFeatureCtrl?
-    
-    var totalCount: Int { features.count }
-    var activeCount: Int { features.filter { $0.isEnabled }.count }
+    var totalCount: Int { viewModel.features.count }
+    var activeCount: Int { viewModel.features.filter { $0.isEnabled }.count }
     
     var body: some View {
         ScrollView {
@@ -264,12 +278,13 @@ struct ScriptManagerView: View {
                 .padding(.top, 8)
                 
                 LazyVStack(spacing: 16) {
-                    ForEach($features) { $feature in
+                    ForEach($viewModel.features) { $feature in
                         FeatureCardView(
                             feature: $feature,
+                            viewModel: viewModel,
                             onDelete: {
-                                if let index = features.firstIndex(where: { $0.id == feature.id }) {
-                                    features.remove(at: index)
+                                if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
+                                    viewModel.features.remove(at: index)
                                     saveToJson()
                                 }
                             },
@@ -278,11 +293,6 @@ struct ScriptManagerView: View {
                             },
                             onSaveChange: {
                                 saveToJson()
-                            },
-                            onFocusChanged: { isFocused in
-                                DispatchQueue.main.async {
-                                    parentVC?.updateNavigationButtons(isEditingField: isFocused)
-                                }
                             }
                         )
                     }
@@ -290,13 +300,13 @@ struct ScriptManagerView: View {
             }
             .padding(.vertical)
         }
-        .alert("Add Script Feature", isPresented: $showingAddAlert) {
+        .alert("Add Script Feature", isPresented: $viewModel.showingAddAlert) {
             TextField("Feature Name (e.g. GodMode)", text: $newName)
             Button("Add") {
                 HapticManager.trigger(.medium)
                 if !newName.isEmpty {
                     let newFeature = ScriptFeature(name: newName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
-                    features.append(newFeature)
+                    viewModel.features.append(newFeature)
                     saveToJson()
                     newName = ""
                 }
@@ -362,7 +372,7 @@ struct ScriptManagerView: View {
     func saveToJson() {
         let url = getJSONFileURL()
         do {
-            let data = try JSONEncoder().encode(features)
+            let data = try JSONEncoder().encode(viewModel.features)
             try data.write(to: url)
         } catch {
             print("Failed to save JSON: \(error)")
@@ -373,11 +383,6 @@ struct ScriptManagerView: View {
         let url = getJSONFileURL()
         guard let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode([ScriptFeature].self, from: data) else { return }
-        features = decoded
-    }
-    
-    func deleteItems(at offsets: IndexSet) {
-        features.remove(atOffsets: offsets)
-        saveToJson()
+        viewModel.features = decoded
     }
 }

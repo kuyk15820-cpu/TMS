@@ -116,9 +116,10 @@ class CustomFeatureCtrl: UIViewController {
         viewModel.isEditingAnyField = false
         updateNavigationButtons(isEditingField: false)
         
-        // เลื่อนหน้าจอกลับตำแหน่งเดิมเมื่อปิดคีย์บอร์ด
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.viewModel.scrollToBottom()
+        // บังคับรีเฟรช Layout เพื่อล้างช่องว่างของคีย์บอร์ดที่ค้างออกทันที โดยไม่เลื่อนตำแหน่งหน้าจอ
+        UIView.animate(withDuration: 0.25) {
+            self.view.setNeedsLayout()
+            self.view.layoutIfNeeded()
         }
     }
 }
@@ -345,7 +346,7 @@ struct ScriptManagerView: View {
                         saveToJson()
                         newName = ""
                         
-                        // เลื่อนหน้าจอลงไปที่การ์ดล่าสุดอัตโนมัติ
+                        // เลื่อนหน้าจอลงไปที่การ์ดล่าสุดเฉพาะตอนเพิ่มฟีเจอร์ใหม่
                         viewModel.scrollToBottom()
                     }
                 }
@@ -367,6 +368,7 @@ struct ScriptManagerView: View {
             }
         } else {
             feature.isEnabled.toggle()
+            saveToJson()
             executeVMTool(original: feature.originalValue, modified: feature.modifiedValue, isApply: feature.isEnabled)
         }
     }

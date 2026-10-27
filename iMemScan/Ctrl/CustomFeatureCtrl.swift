@@ -14,9 +14,11 @@ struct ScriptFeature: Identifiable, Codable {
     var name: String
     var originalValue: String
     var modifiedValue: String
+    var isSaved: Bool = false
+    var isEnabled: Bool = false
     
     enum CodingKeys: String, CodingKey {
-        case name, originalValue, modifiedValue
+        case name, originalValue, modifiedValue, isSaved, isEnabled
     }
 }
 
@@ -37,100 +39,115 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
+// Custom Outlined Text Field UI (สไตล์กรอบมีป้ายชื่อทับเส้นขอบตามรูปตัวอย่าง)
+struct OutlinedTextField: View {
+    let title: String
+    let placeholder: String
+    @Binding text: String
+    
+    var body: some View {
+        ZStack(alignment: .leading) {
+            TextField(placeholder, text: $text)
+                .keyboardType(.numberPad)
+                .font(.system(size: 14, design: .monospaced))
+                .padding(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
+                )
+            
+            // ป้ายชื่อลอยทับขอบด้านบน
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 4)
+                .background(Color(.systemBackground))
+                .offset(x: 10, y: -20)
+        }
+        .padding(.top, 8)
+    }
+}
+
 // SwiftUI Implementation with Custom UI Design
 struct ScriptManagerView: View {
     @State private var features: [ScriptFeature] = []
     @State private var showingAddAlert = false
     @State private var newName = ""
     
+    // คำนวณจำนวนฟีเจอร์ทั้งหมด และจำนวนที่เปิดใช้งานอยู่
+    var totalCount: Int { features.count }
+    var activeCount: Int { features.filter { $0.isEnabled }.count }
+    
     var body: some View {
         NavigationView {
             ScrollView {
-                LazyVStack(spacing: 16) {
-                    ForEach($features) { $feature in
-                        VStack(alignment: .leading, spacing: 12) {
-                            // ชื่อฟีเจอร์
-                            Text(feature.name)
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            // แถวกรอก Input พร้อมเส้นคั่นกลาง
-                            HStack(spacing: 0) {
-                                // ช่อง Original
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("ORIGINAL")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.secondary)
-                                    TextField("909000004", text: $feature.originalValue)
-                                        .keyboardType(.numberPad)
-                                        .font(.system(size: 14, design: .monospaced))
-                                        .onChange(of: feature.originalValue) { _ in saveToJson() }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal, 8)
+                VStack(spacing: 16) {
+                    // แคปซูลแสดงแถบสถานะ (Capsule Status Header)
+                    HStack(spacing: 8) {
+                        Image(systemName: "cpu")
+                            .foregroundColor(.accentColor)
+                        Text("รายการฟีเจอร์: \(totalCount)")
+                        Text("|")
+                            .foregroundColor(.secondary)
+                        Text("ใช้งานอยู่: \(activeCount)")
+                            .foregroundColor(activeCount > 0 ? .green : .secondary)
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(Capsule())
+                    .padding(.top, 8)
+                    
+                    LazyVStack(spacing: 16) {
+                        ForEach($features) { $feature in
+                            VStack(alignment: .leading, spacing: 14) {
+                                // ชื่อฟีเจอร์
+                                Text(feature.name)
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
                                 
-                                // เส้นแบ่งคั่นกลาง
-                                Divider()
-                                    .frame(height: 35)
-                                    .background(Color.secondary.opacity(0.3))
-                                
-                                // ช่อง Modified
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("MODIFIED")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.secondary)
-                                    TextField("909040010", text: $feature.modifiedValue)
-                                        .keyboardType(.numberPad)
-                                        .font(.system(size: 14, design: .monospaced))
-                                        .onChange(of: feature.modifiedValue) { _ in saveToJson() }
+                                // ช่องกรอก Original และ Modified แบบ Outlined TextField
+                                VStack(spacing: 14) {
+                                    OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004", text: $feature.originalValue)
+                                        .onChange(of: feature.originalValue) { _ in
+                                            feature.isSaved = false
+                                            saveToJson()
+                                        }
+                                    
+                                    OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010", text: $feature.modifiedValue)
+                                        .onChange(of: feature.modifiedValue) { _ in
+                                            feature.isSaved = false
+                                            saveToJson()
+                                        }
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal, 8)
-                            }
-                            .padding(8)
-                            .background(Color(.secondarySystemBackground).opacity(0.6))
-                            .cornerRadius(8)
-                            
-                            // ปุ่มกดด้านล่าง (Apply / Revert)
-                            HStack(spacing: 12) {
+                                .padding(.horizontal, 4)
+                                
+                                // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
                                 Button(action: {
-                                    executeVMTool(original: feature.originalValue, modified: feature.modifiedValue, isApply: true)
+                                    handleButtonAction(for: &feature)
                                 }) {
-                                    Text("Apply")
+                                    Text(buttonTitle(for: feature))
                                         .font(.subheadline)
-                                        .fontWeight(.semibold)
+                                        .fontWeight(.bold)
                                         .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 8)
-                                        .background(Color.accentColor)
+                                        .padding(.vertical, 10)
+                                        .background(buttonBackgroundColor(for: feature))
                                         .foregroundColor(.white)
                                         .cornerRadius(8)
                                 }
-                                
-                                Button(action: {
-                                    executeVMTool(original: feature.originalValue, modified: feature.modifiedValue, isApply: false)
-                                }) {
-                                    Text("Revert")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 8)
-                                        .background(Color(.systemGray5))
-                                        .foregroundColor(.primary)
-                                        .cornerRadius(8)
-                                }
                             }
+                            .padding()
+                            .background(Color(.systemBackground))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.horizontal)
                         }
-                        .padding()
-                        .background(Color(.systemBackground))
-                        .cornerRadius(12)
-                        // Table แบบโค้ง พร้อม Border สีเล็กน้อย
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                        )
-                        .padding(.horizontal)
+                        .onDelete(perform: deleteItems)
                     }
-                    .onDelete(perform: deleteItems)
                 }
                 .padding(.vertical)
             }
@@ -144,7 +161,7 @@ struct ScriptManagerView: View {
                 TextField("Feature Name (e.g. GodMode)", text: $newName)
                 Button("Add") {
                     if !newName.isEmpty {
-                        let newFeature = ScriptFeature(name: newName, originalValue: "", modifiedValue: "")
+                        let newFeature = ScriptFeature(name: newName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
                         features.append(newFeature)
                         saveToJson()
                         newName = ""
@@ -160,10 +177,42 @@ struct ScriptManagerView: View {
         }
     }
     
-    // MARK: - ทำงานจริงผ่าน VMTool สไตล์ H5GG เมื่อกดปุ่ม
+    // กำหนดข้อความปุ่มตามสถานะ
+    func buttonTitle(for feature: ScriptFeature) -> String {
+        if !feature.isSaved {
+            return "Save"
+        } else {
+            return feature.isEnabled ? "Disable" : "Enable"
+        }
+    }
+    
+    // กำหนดสีพื้นหลังปุ่มตามสถานะ
+    func buttonBackgroundColor(for feature: ScriptFeature) -> Color {
+        if !feature.isSaved {
+            return Color.orange
+        } else {
+            return feature.isEnabled ? Color.red : Color.accentColor
+        }
+    }
+    
+    // จัดการการกดปุ่ม (บันทึก -> เปิดใช้งาน -> ปิดใช้งาน)
+    func handleButtonAction(for feature: inout ScriptFeature) {
+        if !feature.isSaved {
+            // ยังไม่บันทึก ให้เช็คว่ากรอกครบทั้ง 2 ค่ารึยัง
+            if !feature.originalValue.isEmpty && !feature.modifiedValue.isEmpty {
+                feature.isSaved = true
+                saveToJson()
+            }
+        } else {
+            // บันทึกแล้ว สลับสถานะ Enable / Disable
+            feature.isEnabled.toggle()
+            saveToJson()
+            executeVMTool(original: feature.originalValue, modified: feature.modifiedValue, isApply: feature.isEnabled)
+        }
+    }
+    
+    // MARK: - ทำงานจริงผ่าน VMTool สไตล์ H5GG
     func executeVMTool(original: String, modified: String, isApply: Bool) {
-        if original.isEmpty || modified.isEmpty { return }
-        
         let valueType = VMMemValueType(rawValue: VMMemValueType.RawValue(VMMemValueTypeSignedInt.rawValue))
         let comparison = VMMemComparisonEQ
         

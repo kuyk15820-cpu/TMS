@@ -40,7 +40,15 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// Custom Outlined Text Field UI (ปุ่มเดียวสลับระหว่าง Clear กับ Paste + ปรับขนาดให้เท่ากันทุกสถานะ)
+// Helper สำหรับสั่น (Haptic Feedback)
+struct HapticManager {
+    static func trigger(_ style: UIImpactFeedbackGenerator.Style = .medium) {
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.impactOccurred()
+    }
+}
+
+// Custom Outlined Text Field UI (พร้อมปุ่ม Clear/Paste + ปุ่ม Done บน Navigation Bar ตอนพิมพ์)
 struct OutlinedTextField: View {
     let title: String
     let placeholder: String
@@ -56,18 +64,11 @@ struct OutlinedTextField: View {
                     .font(.system(size: 14, design: .monospaced))
                     .focused($isFocused)
                     .disabled(isDisabled)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("เสร็จสิ้น (Done)") {
-                                isFocused = false
-                            }
-                        }
-                    }
                 
                 // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
                 if !isDisabled {
                     Button(action: {
+                        HapticManager.trigger(.light)
                         if !text.isEmpty {
                             text = ""
                         } else {
@@ -82,7 +83,7 @@ struct OutlinedTextField: View {
                 }
             }
             .padding(.horizontal, 12)
-            .frame(height: 48) // ล็อคความสูงให้เท่ากันเป๊ะทั้งตอนพิมพ์และตอนล็อก
+            .frame(height: 48)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(isDisabled ? Color.secondary.opacity(0.2) : Color.secondary.opacity(0.5), lineWidth: 1)
@@ -102,7 +103,7 @@ struct OutlinedTextField: View {
     }
 }
 
-// Sub-view สำหรับการ์ดแต่ละรายการ (แยกออกมาเพื่อแก้ปัญหา type-check ช้า)
+// Sub-view สำหรับการ์ดแต่ละรายการ
 struct FeatureCardView: View {
     @Binding var feature: ScriptFeature
     var onDelete: () -> Void
@@ -122,6 +123,7 @@ struct FeatureCardView: View {
                 
                 Menu {
                     Button(role: .destructive, action: {
+                        HapticManager.trigger(.heavy)
                         isMenuExpanded = false
                         onDelete()
                     }) {
@@ -134,6 +136,7 @@ struct FeatureCardView: View {
                         .padding(6)
                 }
                 .simultaneousGesture(TapGesture().onEnded {
+                    HapticManager.trigger(.light)
                     isMenuExpanded = true
                 })
             }
@@ -154,6 +157,7 @@ struct FeatureCardView: View {
             
             // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
             Button(action: {
+                HapticManager.trigger(.medium)
                 onAction()
             }) {
                 Text(buttonTitle)
@@ -201,6 +205,7 @@ struct ScriptManagerView: View {
     @State private var showingAddAlert = false
     @State private var newName = ""
     @State private var isMenuExpanded = false
+    @FocusState private var isAnyFieldFocused: Bool
     
     var totalCount: Int { features.count }
     var activeCount: Int { features.filter { $0.isEnabled }.count }
@@ -260,15 +265,31 @@ struct ScriptManagerView: View {
                         }
                 }
             }
-            .navigationBarItems(trailing: Button(action: {
-                showingAddAlert = true
-            }) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title2)
-            })
+            .toolbar {
+                // ปุ่ม + เพิ่มฟีเจอร์ที่มุมขวาบนของ Navigation Bar ตามระบบ
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        HapticManager.trigger(.light)
+                        showingAddAlert = true
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                }
+                
+                // ปุ่มเสร็จสิ้น (Done) ที่มุมขวาบนเฉพาะตอนเปิดคีย์บอร์ดพิมพ์อยู่
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("เสร็จสิ้น") {
+                        HapticManager.trigger(.light)
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+            }
             .alert("Add Script Feature", isPresented: $showingAddAlert) {
                 TextField("Feature Name (e.g. GodMode)", text: $newName)
                 Button("Add") {
+                    HapticManager.trigger(.medium)
                     if !newName.isEmpty {
                         let newFeature = ScriptFeature(name: newName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
                         features.append(newFeature)

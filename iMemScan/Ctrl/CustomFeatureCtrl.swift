@@ -53,16 +53,9 @@ struct ScriptFeature: Identifiable, Codable {
 class ScriptManagerViewModel: ObservableObject {
     @Published var features: [ScriptFeature] = []
     @Published var showingAddAlert: Bool = false
-    @Published var isEditingAnyField: Bool = false
     
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
-    
-    func updateEditingState() {
-        DispatchQueue.main.async {
-            self.parentVC?.updateNavigationButtons(isEditingField: self.isEditingAnyField)
-        }
-    }
     
     func scrollToBottom() {
         if let lastID = features.last?.id {
@@ -92,92 +85,86 @@ class CustomFeatureCtrl: UIViewController {
         view.addSubview(hostingController.view)
         hostingController.didMove(toParent: self)
         
-        updateNavigationButtons(isEditingField: false)
+        updateNavigationButton()
     }
 
-    // จัดการแสดงปุ่มบนขวา: ปุ่ม + อยู่ขวาบนสุดเสมอ, ถ้าพิมพ์อยู่จะมีปุ่ม "เสร็จสิ้น" เลื่อนมาอยู่ทางซ้าย
-    func updateNavigationButtons(isEditingField: Bool) {
+    func updateNavigationButton() {
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus.circle.fill"), style: .plain, target: self, action: #selector(didTapAddButton))
-        
-        if isEditingField {
-            let doneBtn = UIBarButtonItem(title: "เสร็จสิ้น", style: .done, target: self, action: #selector(didTapDoneButton))
-            navigationItem.rightBarButtonItems = [doneBtn, addBtn]
-        } else {
-            navigationItem.rightBarButtonItems = [addBtn]
-        }
+        navigationItem.rightBarButtonItems = [addBtn]
     }
 
     @objc func didTapAddButton() {
         viewModel.showingAddAlert = true
     }
-
-    @objc func didTapDoneButton() {
-        view.endEditing(true) // ปิดคีย์บอร์ดทั้งหมด
-        viewModel.isEditingAnyField = false
-        updateNavigationButtons(isEditingField: false)
-        
-        // บังคับรีเฟรช Layout เพื่อล้างช่องว่างของคีย์บอร์ดที่ค้างออกทันที
-        UIView.animate(withDuration: 0.25, animations: {
-            self.view.setNeedsLayout()
-            self.view.layoutIfNeeded()
-        }) { _ in
-            // เคลียร์ Content Inset ของ ScrollView ทั้งหมดใน View Hierarchy เพื่อล้างช่องว่างล่างสุดที่ค้าง
-            self.clearScrollViewInsets(in: self.view)
-        }
-    }
     
-    // ฟังก์ชันช่วยกวาดหา ScrollView ทั้งหมดแล้วรีเซ็ต Inset ให้กลับมาปกติ
-    private func clearScrollViewInsets(in view: UIView) {
-        for subview in view.subviews {
-            if let scrollView = subview as? UIScrollView {
-                scrollView.contentInset = .zero
-                scrollView.verticalScrollIndicatorInsets = .zero
-            } else {
-                clearScrollViewInsets(in: subview)
+    // ฟังก์ชันแสดง UIAlert พร้อมปุ่มทางลัด Clear และ Paste ในตัว
+    func showValueInputAlert(title: String, message: String, initialValue: String, completion: @escaping (String) -> Void) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        
+        var targetTextField: UITextField?
+        
+        alert.addTextField { textField in
+            textField.placeholder = "909000004 (อย่างน้อย 9 หลัก)"
+            textField.text = initialValue
+            textField.keyboardType = .numberPad
+            targetTextField = textField
+        }
+        
+        let saveAction = UIAlertAction(title: "ตกลง", style: .default) { _ in
+            if let text = targetTextField?.text {
+                completion(text)
             }
         }
+        
+        let pasteAction = UIAlertAction(title: "วางจากคลิปบอร์ด", style: .default) { _ in
+            if let clipboardString = UIPasteboard.general.string {
+                targetTextField?.text = clipboardString
+                // เปิด Alert ซ้ำเพื่อให้ผู้ใช้กดตกลงต่อได้ทันทีหลังวาง
+                self.present(alert, animated: true, completion: nil)
+            } else {
+                self.present(alert, animated: true, completion: nil)
+            }
+        }
+        
+        let clearAction = UIAlertAction(title: "ล้างค่า", style: .destructive) { _ in
+            targetTextField?.text = ""
+            // เปิด Alert ซ้ำเพื่อให้ผู้ใช้กรอกใหม่หรือกดตกลงต่อได้
+            self.present(alert, animated: true, completion: nil)
+        }
+        
+        let cancelAction = UIAlertAction(title: "ยกเลิก", style: .cancel, handler: nil)
+        
+        alert.addAction(clearAction)
+        alert.addAction(pasteAction)
+        alert.addAction(saveAction)
+        alert.addAction(cancelAction)
+        
+        present(alert, animated: true, completion: nil)
     }
 }
 
-// Custom Outlined Text Field UI
-struct OutlinedTextField: View {
+// Custom Read-Only Input Box (ตัดปุ่มไอคอนด้านหลังออก เหลือแค่แสดงค่า)
+struct OutlinedValueView: View {
     let title: String
+    let value: String
     let placeholder: String
-    @Binding var text: String
     var isDisabled: Bool = false
-    @ObservedObject var viewModel: ScriptManagerViewModel
-    @FocusState var isFocused: Bool
+    var onTap: () -> Void
     
     var body: some View {
         ZStack(alignment: .leading) {
             HStack(spacing: 8) {
-                TextField(placeholder, text: $text)
-                    .keyboardType(.numberPad)
+                Text(value.isEmpty ? placeholder : value)
                     .font(.system(size: 14, design: .monospaced))
-                    .focused($isFocused)
-                    .disabled(isDisabled)
-                    .onChange(of: isFocused) { focused in
-                        if focused {
-                            viewModel.isEditingAnyField = true
-                            viewModel.updateEditingState()
+                    .foregroundColor(value.isEmpty ? .secondary.opacity(0.7) : .primary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !isDisabled {
+                            onTap()
                         }
                     }
-                
-                // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
-                if !isDisabled {
-                    Button(action: {
-                        if !text.isEmpty {
-                            text = ""
-                        } else {
-                            if let clipboardString = UIPasteboard.general.string {
-                                text = clipboardString
-                            }
-                        }
-                    }) {
-                        Image(systemName: !text.isEmpty ? "xmark.circle.fill" : "doc.on.clipboard")
-                            .foregroundColor(.secondary)
-                    }
-                }
             }
             .padding(.horizontal, 12)
             .frame(height: 48)
@@ -206,7 +193,8 @@ struct FeatureCardView: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     var onDelete: () -> Void
     var onAction: () -> Void
-    var onSaveChange: () -> Void
+    var onEditOriginal: () -> Void
+    var onEditModified: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -232,17 +220,23 @@ struct FeatureCardView: View {
                 }
             }
             
-            // ช่องกรอก Original และ Modified แบบ Outlined TextField
+            // ช่องแสดงค่า ORIGINAL และ MODIFIED (แตะเพื่อเปิด Alert)
             VStack(spacing: 14) {
-                OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved, viewModel: viewModel)
-                    .onChange(of: feature.originalValue) { _ in
-                        if !feature.isSaved { onSaveChange() }
-                    }
+                OutlinedValueView(
+                    title: "ORIGINAL (I32)",
+                    value: feature.originalValue,
+                    placeholder: "แตะเพื่อกรอกค่า Original...",
+                    isDisabled: feature.isSaved,
+                    onTap: onEditOriginal
+                )
                 
-                OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved, viewModel: viewModel)
-                    .onChange(of: feature.modifiedValue) { _ in
-                        if !feature.isSaved { onSaveChange() }
-                    }
+                OutlinedValueView(
+                    title: "MODIFIED (I32)",
+                    value: feature.modifiedValue,
+                    placeholder: "แตะเพื่อกรอกค่า Modified...",
+                    isDisabled: feature.isSaved,
+                    onTap: onEditModified
+                )
             }
             .padding(.horizontal, 4)
             
@@ -332,8 +326,25 @@ struct ScriptManagerView: View {
                                 onAction: {
                                     handleButtonAction(for: &feature)
                                 },
-                                onSaveChange: {
-                                    saveToJson()
+                                onEditOriginal: {
+                                    viewModel.parentVC?.showValueInputAlert(
+                                        title: "Edit Original Value",
+                                        message: "กรอกค่า Original (I32) อย่างน้อย 9 หลัก",
+                                        initialValue: feature.originalValue
+                                    ) { newValue in
+                                        feature.originalValue = newValue
+                                        saveToJson()
+                                    }
+                                },
+                                onEditModified: {
+                                    viewModel.parentVC?.showValueInputAlert(
+                                        title: "Edit Modified Value",
+                                        message: "กรอกค่า Modified (I32) อย่างน้อย 9 หลัก",
+                                        initialValue: feature.modifiedValue
+                                    ) { newValue in
+                                        feature.modifiedValue = newValue
+                                        saveToJson()
+                                    }
                                 }
                             )
                             .id(feature.id)
@@ -351,7 +362,6 @@ struct ScriptManagerView: View {
                 Button("Add") {
                     let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmedName.isEmpty {
-                        // ถ้าไม่ได้กรอกชื่อ ให้เด้ง Alert เปิดซ้ำเพื่อให้กรอกใหม่ทันที
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             viewModel.showingAddAlert = true
                         }
@@ -360,8 +370,6 @@ struct ScriptManagerView: View {
                         viewModel.features.append(newFeature)
                         saveToJson()
                         newName = ""
-                        
-                        // เลื่อนหน้าจอลงไปที่การ์ดล่าสุดเฉพาะตอนเพิ่มฟีเจอร์ใหม่
                         viewModel.scrollToBottom()
                     }
                 }

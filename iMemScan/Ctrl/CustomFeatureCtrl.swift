@@ -97,7 +97,7 @@ class CustomFeatureCtrl: UIViewController {
         viewModel.showingAddAlert = true
     }
     
-    // ฟังก์ชันแสดง UIAlert พร้อมปุ่มทางลัด Clear และ Paste ในตัว
+    // ฟังก์ชันแสดง UIAlert พร้อมปุ่ม Clear ของ System (นำปุ่มวางจากคลิปบอร์ดออกแล้ว)
     func showValueInputAlert(title: String, message: String, initialValue: String, completion: @escaping (String) -> Void) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         
@@ -107,6 +107,10 @@ class CustomFeatureCtrl: UIViewController {
             textField.placeholder = "909000004 (อย่างน้อย 9 หลัก)"
             textField.text = initialValue
             textField.keyboardType = .numberPad
+            
+            // ใช้ Clear Button ของระบบ iOS (แสดงปุ่มกากบาทเคลียร์ข้อความอัตโนมัติ)
+            textField.clearButtonMode = .whileEditing
+            
             targetTextField = textField
         }
         
@@ -116,26 +120,8 @@ class CustomFeatureCtrl: UIViewController {
             }
         }
         
-        let pasteAction = UIAlertAction(title: "วางจากคลิปบอร์ด", style: .default) { _ in
-            if let clipboardString = UIPasteboard.general.string {
-                targetTextField?.text = clipboardString
-                // เปิด Alert ซ้ำเพื่อให้ผู้ใช้กดตกลงต่อได้ทันทีหลังวาง
-                self.present(alert, animated: true, completion: nil)
-            } else {
-                self.present(alert, animated: true, completion: nil)
-            }
-        }
-        
-        let clearAction = UIAlertAction(title: "ล้างค่า", style: .destructive) { _ in
-            targetTextField?.text = ""
-            // เปิด Alert ซ้ำเพื่อให้ผู้ใช้กรอกใหม่หรือกดตกลงต่อได้
-            self.present(alert, animated: true, completion: nil)
-        }
-        
         let cancelAction = UIAlertAction(title: "ยกเลิก", style: .cancel, handler: nil)
         
-        alert.addAction(clearAction)
-        alert.addAction(pasteAction)
         alert.addAction(saveAction)
         alert.addAction(cancelAction)
         
@@ -143,7 +129,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// Custom Read-Only Input Box (ตัดปุ่มไอคอนด้านหลังออก เหลือแค่แสดงค่า)
+// Custom Read-Only Input Box
 struct OutlinedValueView: View {
     let title: String
     let value: String

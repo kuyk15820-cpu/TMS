@@ -32,7 +32,8 @@ class CustomFeatureCtrl: UIViewController {
         navigationItem.title = "TrollMemScan"
         view.backgroundColor = .systemBackground
         
-        let scriptView = ScriptManagerView()
+        // 🟢 เปลี่ยนจาก let เป็น var เพื่อให้สามารถกำหนดค่า parentVC ได้
+        var scriptView = ScriptManagerView()
         self.scriptManagerViewRef = scriptView
         scriptView.parentVC = self
         
@@ -46,7 +47,7 @@ class CustomFeatureCtrl: UIViewController {
         updateNavigationButtons(isEditingField: false)
     }
 
-    // จัดการแสดงปุ่มบนขวา: ปกติมีปุ่ม +, ถ้าพิมพ์อยู่จะมีปุ่ม "เสร็จสิ้น" เพิ่มมาทางซ้าย
+    // จัดการแสดงปุ่มบนขวา: ปุ่ม + อยู่ขวาบนสุดเสมอ, ถ้าพิมพ์อยู่จะมีปุ่ม "เสร็จสิ้น" เลื่อนมาอยู่ทางซ้ายของปุ่ม +
     func updateNavigationButtons(isEditingField: Bool) {
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus.circle.fill"), style: .plain, target: self, action: #selector(didTapAddButton))
         

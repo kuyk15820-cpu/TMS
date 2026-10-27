@@ -102,14 +102,106 @@ struct OutlinedTextField: View {
     }
 }
 
+// Sub-view สำหรับการ์ดแต่ละรายการ (แยกออกมาเพื่อแก้ปัญหา type-check ช้า)
+struct FeatureCardView: View {
+    @Binding var feature: ScriptFeature
+    var onDelete: () -> Void
+    @Binding var isMenuExpanded: Bool
+    var onAction: () -> Void
+    var onSaveChange: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // ส่วนหัวการ์ด: ชื่อฟีเจอร์ และ เมนูสามจุดด้านขวา
+            HStack {
+                Text(feature.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Menu {
+                    Button(role: .destructive, action: {
+                        isMenuExpanded = false
+                        onDelete()
+                    }) {
+                        Label("ลบฟีเจอร์นี้", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .padding(6)
+                }
+                .simultaneousGesture(TapGesture().onEnded {
+                    isMenuExpanded = true
+                })
+            }
+            
+            // ช่องกรอก Original และ Modified แบบ Outlined TextField
+            VStack(spacing: 14) {
+                OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved)
+                    .onChange(of: feature.originalValue) { _ in
+                        if !feature.isSaved { onSaveChange() }
+                    }
+                
+                OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved)
+                    .onChange(of: feature.modifiedValue) { _ in
+                        if !feature.isSaved { onSaveChange() }
+                    }
+            }
+            .padding(.horizontal, 4)
+            
+            // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
+            Button(action: {
+                onAction()
+            }) {
+                Text(buttonTitle)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(buttonBackgroundColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .disabled(!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))
+            .opacity((!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)) ? 0.5 : 1.0)
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+        )
+        .padding(.horizontal)
+    }
+    
+    var buttonTitle: String {
+        if !feature.isSaved {
+            return "Save"
+        } else {
+            return feature.isEnabled ? "Disable" : "Enable"
+        }
+    }
+    
+    var buttonBackgroundColor: Color {
+        if !feature.isSaved {
+            return Color.orange
+        } else {
+            return feature.isEnabled ? Color.red : Color.accentColor
+        }
+    }
+}
+
 // SwiftUI Implementation with Custom UI Design
 struct ScriptManagerView: View {
     @State private var features: [ScriptFeature] = []
     @State private var showingAddAlert = false
     @State private var newName = ""
-    @State private var isMenuExpanded = false // สถานะป้องกันการสัมผัสตอนเปิดเมนูสามจุด
+    @State private var isMenuExpanded = false
     
-    // คำนวณจำนวนฟีเจอร์ทั้งหมด และจำนวนที่เปิดใช้งานอยู่
     var totalCount: Int { features.count }
     var activeCount: Int { features.filter { $0.isEnabled }.count }
     
@@ -118,7 +210,7 @@ struct ScriptManagerView: View {
             ZStack {
                 ScrollView {
                     VStack(spacing: 16) {
-                        // แคปซูลแสดงแถบสถานะ (Capsule Status Header)
+                        // แคปซูลแสดงแถบสถานะ
                         HStack(spacing: 8) {
                             Image(systemName: "cpu")
                                 .foregroundColor(.accentColor)
@@ -137,84 +229,29 @@ struct ScriptManagerView: View {
                         
                         LazyVStack(spacing: 16) {
                             ForEach($features) { $feature in
-                                VStack(alignment: .leading, spacing: 14) {
-                                    // ส่วนหัวการ์ด: ชื่อฟีเจอร์ และ เมนูสามจุดด้านขวา
-                                    HStack {
-                                        Text(feature.name)
-                                            .font(.headline)
-                                            .foregroundColor(.primary)
-                                        
-                                        Spacer()
-                                        
-                                        // เมนูสามจุดสำหรับลบฟีเจอร์ พร้อมบล็อกหน้าจอชั่วคราว
-                                        Menu {
-                                            Button(role: .destructive, action: {
-                                                isMenuExpanded = false
-                                                if let index = features.firstIndex(where: { $0.id == feature.id }) {
-                                                    features.remove(at: index)
-                                                    saveToJson()
-                                                }
-                                            }) {
-                                                Label("ลบฟีเจอร์นี้", systemImage: "trash")
-                                            }
-                                        } label: {
-                                            Image(systemName: "ellipsis")
-                                                .font(.system(size: 16, weight: .bold))
-                                                .foregroundColor(.secondary)
-                                                .padding(6)
-                                        }čne: {
-                                            // ปิด Menu ดักจับสถานะ
+                                FeatureCardView(
+                                    feature: $feature,
+                                    onDelete: {
+                                        if let index = features.firstIndex(where: { $0.id == feature.id }) {
+                                            features.remove(at: index)
+                                            saveToJson()
                                         }
-                                        .simultaneousGesture(TapGesture().onEnded {
-                                            isMenuExpanded = true
-                                        })
-                                    }
-                                    
-                                    // ช่องกรอก Original และ Modified แบบ Outlined TextField
-                                    VStack(spacing: 14) {
-                                        OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved)
-                                            .onChange(of: feature.originalValue) { _ in
-                                                if !feature.isSaved { saveToJson() }
-                                            }
-                                        
-                                        OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved)
-                                            .onChange(of: feature.modifiedValue) { _ in
-                                                if !feature.isSaved { saveToJson() }
-                                            }
-                                    }
-                                    .padding(.horizontal, 4)
-                                    
-                                    // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
-                                    Button(action: {
+                                    },
+                                    isMenuExpanded: $isMenuExpanded,
+                                    onAction: {
                                         handleButtonAction(for: &feature)
-                                    }) {
-                                        Text(buttonTitle(for: feature))
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 10)
-                                            .background(buttonBackgroundColor(for: feature))
-                                            .foregroundColor(.white)
-                                            .cornerRadius(8)
+                                    },
+                                    onSaveChange: {
+                                        saveToJson()
                                     }
-                                    .disabled(!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))
-                                    .opacity((!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)) ? 0.5 : 1.0)
-                                }
-                                .padding()
-                                .background(Color(.systemBackground))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                                 )
-                                .padding(.horizontal)
                             }
                         }
                     }
                     .padding(.vertical)
                 }
                 
-                // เลเยอร์โปร่งแสงบล็อกการสัมผัสชั่วคราวเวลาเมนูสามจุดถูกเปิดขึ้นมา
+                // เลเยอร์โปร่งแสงบล็อกการสัมผัสชั่วคราวเวลาเมนูสามจุดเปิดขึ้นมา
                 if isMenuExpanded {
                     Color.black.opacity(0.001)
                         .edgesIgnoringSafeArea(.all)
@@ -249,25 +286,6 @@ struct ScriptManagerView: View {
         }
     }
     
-    // กำหนดข้อความปุ่มตามสถานะ
-    func buttonTitle(for feature: ScriptFeature) -> String {
-        if !feature.isSaved {
-            return "Save"
-        } else {
-            return feature.isEnabled ? "Disable" : "Enable"
-        }
-    }
-    
-    // กำหนดสีพื้นหลังปุ่มตามสถานะ
-    func buttonBackgroundColor(for feature: ScriptFeature) -> Color {
-        if !feature.isSaved {
-            return Color.orange
-        } else {
-            return feature.isEnabled ? Color.red : Color.accentColor
-        }
-    }
-    
-    // จัดการการกดปุ่ม (ตรวจสอบความยาวอย่างน้อย 9 ตัวเลข -> บันทึก/ล็อคฟิลด์ -> สลับเปิด/ปิดใช้งาน)
     func handleButtonAction(for feature: inout ScriptFeature) {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {

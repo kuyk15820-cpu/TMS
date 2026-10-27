@@ -43,7 +43,7 @@ class CustomFeatureCtrl: UIViewController {
 struct OutlinedTextField: View {
     let title: String
     let placeholder: String
-    @Binding text: String
+    @Binding var text: String
     
     var body: some View {
         ZStack(alignment: .leading) {

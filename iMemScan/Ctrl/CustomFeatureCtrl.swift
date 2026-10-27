@@ -27,7 +27,7 @@ class CustomFeatureCtrl: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        navigationItem.title = "H5GG Script Manager (I32)"
+        navigationItem.title = "TrollMemScan"
         view.backgroundColor = .systemBackground
         
         // ฝัง SwiftUI View เข้ามาใน UIViewController

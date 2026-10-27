@@ -9,17 +9,43 @@ import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON)
+// Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON แต่ไม่บันทึก isEnabled)
 struct ScriptFeature: Identifiable, Codable {
     var id = UUID()
     var name: String
-    var originalValue: String
-    var modifiedValue: String
+    var originalValue: String = ""
+    var modifiedValue: String = ""
     var isSaved: Bool = false
     var isEnabled: Bool = false
     
     enum CodingKeys: String, CodingKey {
-        case name, originalValue, modifiedValue, isSaved, isEnabled
+        case name, originalValue, modifiedValue, isSaved
+    }
+    
+    init(id: UUID = UUID(), name: String, originalValue: String = "", modifiedValue: String = "", isSaved: Bool = false, isEnabled: Bool = false) {
+        self.id = id
+        self.name = name
+        self.originalValue = originalValue
+        self.modifiedValue = modifiedValue
+        self.isSaved = isSaved
+        self.isEnabled = isEnabled
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        originalValue = try container.decodeIfPresent(String.self, forKey: .originalValue) ?? ""
+        modifiedValue = try container.decodeIfPresent(String.self, forKey: .modifiedValue) ?? ""
+        isSaved = try container.decodeIfPresent(Bool.self, forKey: .isSaved) ?? false
+        isEnabled = false // รีเซ็ตสถานะเปิด/ปิดเป็น false เสมอเมื่อโหลดขึ้นมาใหม่
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(originalValue, forKey: .originalValue)
+        try container.encode(modifiedValue, forKey: .modifiedValue)
+        try container.encode(isSaved, forKey: .isSaved)
     }
 }
 
@@ -29,11 +55,20 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var showingAddAlert: Bool = false
     @Published var isEditingAnyField: Bool = false
     
+    var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
     
     func updateEditingState() {
         DispatchQueue.main.async {
             self.parentVC?.updateNavigationButtons(isEditingField: self.isEditingAnyField)
+        }
+    }
+    
+    func scrollToBottom() {
+        if let lastID = features.last?.id {
+            withAnimation {
+                scrollToProxy?.scrollTo(lastID, anchor: .bottom)
+            }
         }
     }
 }
@@ -73,23 +108,18 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     @objc func didTapAddButton() {
-        HapticManager.trigger(.light)
         viewModel.showingAddAlert = true
     }
 
     @objc func didTapDoneButton() {
-        HapticManager.trigger(.light)
         view.endEditing(true) // ปิดคีย์บอร์ดทั้งหมด
         viewModel.isEditingAnyField = false
         updateNavigationButtons(isEditingField: false)
-    }
-}
-
-// Helper สำหรับสั่น (Haptic Feedback)
-struct HapticManager {
-    static func trigger(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
-        let generator = UIImpactFeedbackGenerator(style: style)
-        generator.impactOccurred()
+        
+        // เลื่อนหน้าจอกลับตำแหน่งเดิมเมื่อปิดคีย์บอร์ด
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.viewModel.scrollToBottom()
+        }
     }
 }
 
@@ -120,7 +150,6 @@ struct OutlinedTextField: View {
                 // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
                 if !isDisabled {
                     Button(action: {
-                        HapticManager.trigger(.light)
                         if !text.isEmpty {
                             text = ""
                         } else {
@@ -175,7 +204,6 @@ struct FeatureCardView: View {
                 
                 Menu {
                     Button(role: .destructive, action: {
-                        HapticManager.trigger(.heavy)
                         onDelete()
                     }) {
                         Label("ลบฟีเจอร์นี้", systemImage: "trash")
@@ -186,9 +214,6 @@ struct FeatureCardView: View {
                         .foregroundColor(.secondary)
                         .padding(6)
                 }
-                .simultaneousGesture(TapGesture().onEnded {
-                    HapticManager.trigger(.light)
-                })
             }
             
             // ช่องกรอก Original และ Modified แบบ Outlined TextField
@@ -207,7 +232,6 @@ struct FeatureCardView: View {
             
             // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
             Button(action: {
-                HapticManager.trigger(.medium)
                 onAction()
             }) {
                 Text(buttonTitle)
@@ -258,67 +282,80 @@ struct ScriptManagerView: View {
     var activeCount: Int { viewModel.features.filter { $0.isEnabled }.count }
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // แคปซูลแสดงแถบสถานะ
-                HStack(spacing: 8) {
-                    Image(systemName: "cpu")
-                        .foregroundColor(.accentColor)
-                    Text("รายการฟีเจอร์: \(totalCount)")
-                    Text("|")
-                        .foregroundColor(.secondary)
-                    Text("ใช้งานอยู่: \(activeCount)")
-                        .foregroundColor(activeCount > 0 ? .green : .secondary)
-                }
-                .font(.system(size: 13, weight: .semibold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(.secondarySystemBackground))
-                .clipShape(Capsule())
-                .padding(.top, 8)
-                
-                LazyVStack(spacing: 16) {
-                    ForEach($viewModel.features) { $feature in
-                        FeatureCardView(
-                            feature: $feature,
-                            viewModel: viewModel,
-                            onDelete: {
-                                if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
-                                    viewModel.features.remove(at: index)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 16) {
+                    // แคปซูลแสดงแถบสถานะ
+                    HStack(spacing: 8) {
+                        Image(systemName: "cpu")
+                            .foregroundColor(.accentColor)
+                        Text("รายการฟีเจอร์: \(totalCount)")
+                        Text("|")
+                            .foregroundColor(.secondary)
+                        Text("ใช้งานอยู่: \(activeCount)")
+                            .foregroundColor(activeCount > 0 ? .green : .secondary)
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(Capsule())
+                    .padding(.top, 8)
+                    
+                    LazyVStack(spacing: 16) {
+                        ForEach($viewModel.features) { $feature in
+                            FeatureCardView(
+                                feature: $feature,
+                                viewModel: viewModel,
+                                onDelete: {
+                                    if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
+                                        viewModel.features.remove(at: index)
+                                        saveToJson()
+                                    }
+                                },
+                                onAction: {
+                                    handleButtonAction(for: &feature)
+                                },
+                                onSaveChange: {
                                     saveToJson()
                                 }
-                            },
-                            onAction: {
-                                handleButtonAction(for: &feature)
-                            },
-                            onSaveChange: {
-                                saveToJson()
-                            }
-                        )
+                            )
+                            .id(feature.id)
+                        }
                     }
                 }
+                .padding(.vertical)
             }
-            .padding(.vertical)
-        }
-        .alert("Add Script Feature", isPresented: $viewModel.showingAddAlert) {
-            TextField("Feature Name (e.g. GodMode)", text: $newName)
-            Button("Add") {
-                HapticManager.trigger(.medium)
-                if !newName.isEmpty {
-                    let newFeature = ScriptFeature(name: newName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
-                    viewModel.features.append(newFeature)
-                    saveToJson()
+            .onAppear {
+                viewModel.scrollToProxy = proxy
+                loadFromJson()
+            }
+            .alert("Add Script Feature", isPresented: $viewModel.showingAddAlert) {
+                TextField("Feature Name (e.g. GodMode)", text: $newName)
+                Button("Add") {
+                    let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedName.isEmpty {
+                        // ถ้าไม่ได้กรอกชื่อ ให้เด้ง Alert เปิดซ้ำเพื่อให้กรอกใหม่ทันที
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            viewModel.showingAddAlert = true
+                        }
+                    } else {
+                        let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
+                        viewModel.features.append(newFeature)
+                        saveToJson()
+                        newName = ""
+                        
+                        // เลื่อนหน้าจอลงไปที่การ์ดล่าสุดอัตโนมัติ
+                        viewModel.scrollToBottom()
+                    }
+                }
+                
+                Button("Cancel", role: .cancel) {
                     newName = ""
                 }
+            } message: {
+                Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรุณากรอกชื่อฟีเจอร์ก่อนกด Add" : "Enter a name for your custom I32 feature.")
             }
-            .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            
-            Button("Cancel", role: .cancel) { newName = "" }
-        } message: {
-            Text("Enter a name for your custom I32 feature.")
-        }
-        .onAppear {
-            loadFromJson()
         }
     }
     
@@ -330,7 +367,6 @@ struct ScriptManagerView: View {
             }
         } else {
             feature.isEnabled.toggle()
-            saveToJson()
             executeVMTool(original: feature.originalValue, modified: feature.modifiedValue, isApply: feature.isEnabled)
         }
     }
@@ -359,7 +395,7 @@ struct ScriptManagerView: View {
         }
     }
     
-    // MARK: - จัดการ JSON ใน Application Support
+    // MARK: - จัดการ JSON ใน Application Support (ไม่บันทึกสถานะ isEnabled)
     func getJSONFileURL() -> URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let supportDir = paths[0]

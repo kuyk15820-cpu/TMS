@@ -76,7 +76,6 @@ class ScriptManagerViewModel: ObservableObject {
 class CustomFeatureCtrl: UIViewController {
 
     var viewModel = ScriptManagerViewModel()
-    var hostingController: UIHostingController<ScriptManagerView>?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -86,14 +85,12 @@ class CustomFeatureCtrl: UIViewController {
         viewModel.parentVC = self
         
         let scriptView = ScriptManagerView(viewModel: viewModel)
-        let hostingCtrl = UIHostingController(rootView: scriptView)
-        self.hostingController = hostingCtrl
-        
-        addChild(hostingCtrl)
-        hostingCtrl.view.frame = view.bounds
-        hostingCtrl.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(hostingCtrl.view)
-        hostingCtrl.didMove(toParent: self)
+        let hostingController = UIHostingController(rootView: scriptView)
+        addChild(hostingController)
+        hostingController.view.frame = view.bounds
+        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(hostingController.view)
+        hostingController.didMove(toParent: self)
         
         updateNavigationButtons(isEditingField: false)
     }
@@ -119,10 +116,25 @@ class CustomFeatureCtrl: UIViewController {
         viewModel.isEditingAnyField = false
         updateNavigationButtons(isEditingField: false)
         
-        // 🟢 บังคับให้ UIKit รีเฟรชกรอบมุมมอง (Frame) ทันที เพื่อดึงพื้นที่ขอบล่างกลับมาโดยที่ ScrollView ไม่อนุญาตให้หน้าจอดีดกลับไปบนสุด
-        UIView.performWithoutAnimation {
+        // บังคับรีเฟรช Layout เพื่อล้างช่องว่างของคีย์บอร์ดที่ค้างออกทันที
+        UIView.animate(withDuration: 0.25, animations: {
             self.view.setNeedsLayout()
             self.view.layoutIfNeeded()
+        }) { _ in
+            // เคลียร์ Content Inset ของ ScrollView ทั้งหมดใน View Hierarchy เพื่อล้างช่องว่างล่างสุดที่ค้าง
+            self.clearScrollViewInsets(in: self.view)
+        }
+    }
+    
+    // ฟังก์ชันช่วยกวาดหา ScrollView ทั้งหมดแล้วรีเซ็ต Inset ให้กลับมาปกติ
+    private func clearScrollViewInsets(in view: UIView) {
+        for subview in view.subviews {
+            if let scrollView = subview as? UIScrollView {
+                scrollView.contentInset = .zero
+                scrollView.verticalScrollIndicatorInsets = .zero
+            } else {
+                clearScrollViewInsets(in: subview)
+            }
         }
     }
 }

@@ -25,19 +25,48 @@ struct ScriptFeature: Identifiable, Codable {
 
 class CustomFeatureCtrl: UIViewController {
 
+    var scriptManagerViewRef: ScriptManagerView?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         navigationItem.title = "TrollMemScan"
         view.backgroundColor = .systemBackground
         
-        // ฝัง SwiftUI View เข้ามาใน UIViewController โดยตรง (ไม่ต้องสร้าง NavigationView ซ้ำซ้อน)
         let scriptView = ScriptManagerView()
+        self.scriptManagerViewRef = scriptView
+        scriptView.parentVC = self
+        
         let hostingController = UIHostingController(rootView: scriptView)
         addChild(hostingController)
         hostingController.view.frame = view.bounds
         hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(hostingController.view)
         hostingController.didMove(toParent: self)
+        
+        updateNavigationButtons(isEditingField: false)
+    }
+
+    // จัดการแสดงปุ่มบนขวา: ปกติมีปุ่ม +, ถ้าพิมพ์อยู่จะมีปุ่ม "เสร็จสิ้น" เพิ่มมาทางซ้าย
+    func updateNavigationButtons(isEditingField: Bool) {
+        let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus.circle.fill"), style: .plain, target: self, action: #selector(didTapAddButton))
+        
+        if isEditingField {
+            let doneBtn = UIBarButtonItem(title: "เสร็จสิ้น", style: .done, target: self, action: #selector(didTapDoneButton))
+            navigationItem.rightBarButtonItems = [doneBtn, addBtn]
+        } else {
+            navigationItem.rightBarButtonItems = [addBtn]
+        }
+    }
+
+    @objc func didTapAddButton() {
+        HapticManager.trigger(.light)
+        scriptManagerViewRef?.showingAddAlert = true
+    }
+
+    @objc func didTapDoneButton() {
+        HapticManager.trigger(.light)
+        view.endEditing(true) // ปิดคีย์บอร์ด
+        updateNavigationButtons(isEditingField: false)
     }
 }
 
@@ -55,6 +84,7 @@ struct OutlinedTextField: View {
     let placeholder: String
     @Binding var text: String
     var isDisabled: Bool = false
+    var onFocusChanged: (Bool) -> Void
     @FocusState var isFocused: Bool
     
     var body: some View {
@@ -65,6 +95,9 @@ struct OutlinedTextField: View {
                     .font(.system(size: 14, design: .monospaced))
                     .focused($isFocused)
                     .disabled(isDisabled)
+                    .onChange(of: isFocused) { focused in
+                        onFocusChanged(focused)
+                    }
                 
                 // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
                 if !isDisabled {
@@ -110,6 +143,7 @@ struct FeatureCardView: View {
     var onDelete: () -> Void
     var onAction: () -> Void
     var onSaveChange: () -> Void
+    var onFocusChanged: (Bool) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -141,12 +175,12 @@ struct FeatureCardView: View {
             
             // ช่องกรอก Original และ Modified แบบ Outlined TextField
             VStack(spacing: 14) {
-                OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved)
+                OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved, onFocusChanged: onFocusChanged)
                     .onChange(of: feature.originalValue) { _ in
                         if !feature.isSaved { onSaveChange() }
                     }
                 
-                OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved)
+                OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved, onFocusChanged: onFocusChanged)
                     .onChange(of: feature.modifiedValue) { _ in
                         if !feature.isSaved { onSaveChange() }
                     }
@@ -200,14 +234,15 @@ struct FeatureCardView: View {
 // SwiftUI Implementation with Custom UI Design
 struct ScriptManagerView: View {
     @State private var features: [ScriptFeature] = []
-    @State private var showingAddAlert = false
+    @State var showingAddAlert = false
     @State private var newName = ""
+    
+    weak var parentVC: CustomFeatureCtrl?
     
     var totalCount: Int { features.count }
     var activeCount: Int { features.filter { $0.isEnabled }.count }
     
     var body: some View {
-        // ตัด NavigationView ออก เพื่อให้เกาะกับ Navigation Bar ของ UIViewController ด้านนอกพอดี
         ScrollView {
             VStack(spacing: 16) {
                 // แคปซูลแสดงแถบสถานะ
@@ -242,24 +277,17 @@ struct ScriptManagerView: View {
                             },
                             onSaveChange: {
                                 saveToJson()
+                            },
+                            onFocusChanged: { isFocused in
+                                DispatchQueue.main.async {
+                                    parentVC?.updateNavigationButtons(isEditingField: isFocused)
+                                }
                             }
                         )
                     }
                 }
             }
             .padding(.vertical)
-        }
-        .toolbar {
-            // ปุ่ม + จะไปอยู่แถวเดียวกับ Navigation Title (TrollMemScan) ทางขวาบนสุดอย่างถูกต้อง
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    HapticManager.trigger(.light)
-                    showingAddAlert = true
-                }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                }
-            }
         }
         .alert("Add Script Feature", isPresented: $showingAddAlert) {
             TextField("Feature Name (e.g. GodMode)", text: $newName)

@@ -7,6 +7,7 @@
 
 import UIKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON)
 struct ScriptFeature: Identifiable, Codable {
@@ -39,22 +40,50 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// Custom Outlined Text Field UI (สไตล์กรอบมีป้ายชื่อทับเส้นขอบตามรูปตัวอย่าง)
+// Custom Outlined Text Field UI (พร้อมปุ่ม Clear และ Paste จากคลิปบอร์ด)
 struct OutlinedTextField: View {
     let title: String
     let placeholder: String
     @Binding var text: String
+    var isDisabled: Bool = false
     
     var body: some View {
         ZStack(alignment: .leading) {
-            TextField(placeholder, text: $text)
-                .keyboardType(.numberPad)
-                .font(.system(size: 14, design: .monospaced))
-                .padding(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
-                )
+            HStack(spacing: 8) {
+                TextField(placeholder, text: $text)
+                    .keyboardType(.numberPad)
+                    .font(.system(size: 14, design: .monospaced))
+                    .disabled(isDisabled)
+                
+                // ปุ่ม Clear (แสดงเฉพาะตอนที่มีข้อความและยังไม่ถูกล็อค)
+                if !text.isEmpty && !isDisabled {
+                    Button(action: {
+                        text = ""
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                // ปุ่ม Paste จากคลิปบอร์ด (แสดงเฉพาะตอนยังไม่ถูกล็อค)
+                if !isDisabled {
+                    Button(action: {
+                        if let clipboardString = UIPasteboard.general.string {
+                            text = clipboardString
+                        }
+                    }) {
+                        Image(systemName: "doc.on.clipboard")
+                            .foregroundColor(.accentColor)
+                    }
+                }
+            }
+            .padding(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isDisabled ? Color.secondary.opacity(0.2) : Color.secondary.opacity(0.5), lineWidth: 1)
+            )
+            .background(isDisabled ? Color(.systemGray6).opacity(0.5) : Color.clear)
+            .cornerRadius(8)
             
             // ป้ายชื่อลอยทับขอบด้านบน
             Text(title)
@@ -102,23 +131,42 @@ struct ScriptManagerView: View {
                     LazyVStack(spacing: 16) {
                         ForEach($features) { $feature in
                             VStack(alignment: .leading, spacing: 14) {
-                                // ชื่อฟีเจอร์
-                                Text(feature.name)
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
+                                // ส่วนหัวการ์ด: ชื่อฟีเจอร์ และ เมนูสามจุดด้านขวา
+                                HStack {
+                                    Text(feature.name)
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    
+                                    Spacer()
+                                    
+                                    // เมนูสามจุดสำหรับลบฟีเจอร์
+                                    Menu {
+                                        Button(role: .destructive, action: {
+                                            if let index = features.firstIndex(where: { $0.id == feature.id }) {
+                                                features.remove(at: index)
+                                                saveToJson()
+                                            }
+                                        }) {
+                                            Label("ลบฟีเจอร์นี้", systemImage: "trash")
+                                        }
+                                    } label: {
+                                        Image(systemName: "ellipsis")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(.secondary)
+                                            .padding(6)
+                                    }
+                                }
                                 
-                                // ช่องกรอก Original และ Modified แบบ Outlined TextField
+                                // ช่องกรอก Original และ Modified แบบ Outlined TextField (ล็อคการพิมพ์เมื่อ Save แล้ว)
                                 VStack(spacing: 14) {
-                                    OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004", text: $feature.originalValue)
+                                    OutlinedTextField(title: "ORIGINAL (I32)", placeholder: "909000004 (อย่างน้อย 9 หลัก)", text: $feature.originalValue, isDisabled: feature.isSaved)
                                         .onChange(of: feature.originalValue) { _ in
-                                            feature.isSaved = false
-                                            saveToJson()
+                                            if !feature.isSaved { saveToJson() }
                                         }
                                     
-                                    OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010", text: $feature.modifiedValue)
+                                    OutlinedTextField(title: "MODIFIED (I32)", placeholder: "909040010 (อย่างน้อย 9 หลัก)", text: $feature.modifiedValue, isDisabled: feature.isSaved)
                                         .onChange(of: feature.modifiedValue) { _ in
-                                            feature.isSaved = false
-                                            saveToJson()
+                                            if !feature.isSaved { saveToJson() }
                                         }
                                 }
                                 .padding(.horizontal, 4)
@@ -136,6 +184,8 @@ struct ScriptManagerView: View {
                                         .foregroundColor(.white)
                                         .cornerRadius(8)
                                 }
+                                .disabled(!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))
+                                .opacity((!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)) ? 0.5 : 1.0)
                             }
                             .padding()
                             .background(Color(.systemBackground))
@@ -146,10 +196,14 @@ struct ScriptManagerView: View {
                             )
                             .padding(.horizontal)
                         }
-                        .onDelete(perform: deleteItems)
                     }
                 }
                 .padding(.vertical)
+            }
+            // แตะพื้นที่ว่างเพื่อซ่อนคีย์บอร์ด
+            .contentShape(Rectangle())
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             .navigationBarItems(trailing: Button(action: {
                 showingAddAlert = true
@@ -195,11 +249,11 @@ struct ScriptManagerView: View {
         }
     }
     
-    // จัดการการกดปุ่ม (บันทึก -> เปิดใช้งาน -> ปิดใช้งาน)
+    // จัดการการกดปุ่ม (ตรวจสอบความยาวอย่างน้อย 9 ตัวเลข -> บันทึก/ล็อคฟิลด์ -> สลับเปิด/ปิดใช้งาน)
     func handleButtonAction(for feature: inout ScriptFeature) {
         if !feature.isSaved {
-            // ยังไม่บันทึก ให้เช็คว่ากรอกครบทั้ง 2 ค่ารึยัง
-            if !feature.originalValue.isEmpty && !feature.modifiedValue.isEmpty {
+            // เช็คความยาวอย่างน้อย 9 ตัวเลขทั้ง 2 ช่อง
+            if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
                 saveToJson()
             }

@@ -30,8 +30,9 @@ class CustomFeatureCtrl: UIViewController {
         navigationItem.title = "TrollMemScan"
         view.backgroundColor = .systemBackground
         
-        // ฝัง SwiftUI View เข้ามาใน UIViewController
-        let hostingController = UIHostingController(rootView: ScriptManagerView())
+        // ฝัง SwiftUI View เข้ามาใน UIViewController โดยตรง (ไม่ต้องสร้าง NavigationView ซ้ำซ้อน)
+        let scriptView = ScriptManagerView()
+        let hostingController = UIHostingController(rootView: scriptView)
         addChild(hostingController)
         hostingController.view.frame = view.bounds
         hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -40,7 +41,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// Helper สำหรับสั่น (Haptic Feedback) - ใช้ FeedbackStyle ที่ถูกต้อง
+// Helper สำหรับสั่น (Haptic Feedback)
 struct HapticManager {
     static func trigger(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
         let generator = UIImpactFeedbackGenerator(style: style)
@@ -48,7 +49,7 @@ struct HapticManager {
     }
 }
 
-// Custom Outlined Text Field UI (ปุ่มเดียวสลับระหว่าง Clear กับ Paste + ขนาดเท่ากันทุกสถานะ)
+// Custom Outlined Text Field UI
 struct OutlinedTextField: View {
     let title: String
     let placeholder: String
@@ -206,81 +207,79 @@ struct ScriptManagerView: View {
     var activeCount: Int { features.filter { $0.isEnabled }.count }
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // แคปซูลแสดงแถบสถานะ
-                    HStack(spacing: 8) {
-                        Image(systemName: "cpu")
-                            .foregroundColor(.accentColor)
-                        Text("รายการฟีเจอร์: \(totalCount)")
-                        Text("|")
-                            .foregroundColor(.secondary)
-                        Text("ใช้งานอยู่: \(activeCount)")
-                            .foregroundColor(activeCount > 0 ? .green : .secondary)
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(Capsule())
-                    .padding(.top, 8)
-                    
-                    LazyVStack(spacing: 16) {
-                        ForEach($features) { $feature in
-                            FeatureCardView(
-                                feature: $feature,
-                                onDelete: {
-                                    if let index = features.firstIndex(where: { $0.id == feature.id }) {
-                                        features.remove(at: index)
-                                        saveToJson()
-                                    }
-                                },
-                                onAction: {
-                                    handleButtonAction(for: &feature)
-                                },
-                                onSaveChange: {
+        // ตัด NavigationView ออก เพื่อให้เกาะกับ Navigation Bar ของ UIViewController ด้านนอกพอดี
+        ScrollView {
+            VStack(spacing: 16) {
+                // แคปซูลแสดงแถบสถานะ
+                HStack(spacing: 8) {
+                    Image(systemName: "cpu")
+                        .foregroundColor(.accentColor)
+                    Text("รายการฟีเจอร์: \(totalCount)")
+                    Text("|")
+                        .foregroundColor(.secondary)
+                    Text("ใช้งานอยู่: \(activeCount)")
+                        .foregroundColor(activeCount > 0 ? .green : .secondary)
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(Capsule())
+                .padding(.top, 8)
+                
+                LazyVStack(spacing: 16) {
+                    ForEach($features) { $feature in
+                        FeatureCardView(
+                            feature: $feature,
+                            onDelete: {
+                                if let index = features.firstIndex(where: { $0.id == feature.id }) {
+                                    features.remove(at: index)
                                     saveToJson()
                                 }
-                            )
-                        }
-                    }
-                }
-                .padding(.vertical)
-            }
-            .navigationBarTitle("TrollMemScan")
-            .toolbar {
-                // ปุ่ม + อยู่แถวเดียวกับ Navigation Title ทางขวาบนสุด
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        HapticManager.trigger(.light)
-                        showingAddAlert = true
-                    }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
+                            },
+                            onAction: {
+                                handleButtonAction(for: &feature)
+                            },
+                            onSaveChange: {
+                                saveToJson()
+                            }
+                        )
                     }
                 }
             }
-            .alert("Add Script Feature", isPresented: $showingAddAlert) {
-                TextField("Feature Name (e.g. GodMode)", text: $newName)
-                Button("Add") {
-                    HapticManager.trigger(.medium)
-                    if !newName.isEmpty {
-                        let newFeature = ScriptFeature(name: newName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
-                        features.append(newFeature)
-                        saveToJson()
-                        newName = ""
-                    }
+            .padding(.vertical)
+        }
+        .toolbar {
+            // ปุ่ม + จะไปอยู่แถวเดียวกับ Navigation Title (TrollMemScan) ทางขวาบนสุดอย่างถูกต้อง
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    HapticManager.trigger(.light)
+                    showingAddAlert = true
+                }) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
                 }
-                .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                
-                Button("Cancel", role: .cancel) { newName = "" }
-            } message: {
-                Text("Enter a name for your custom I32 feature.")
             }
-            .onAppear {
-                loadFromJson()
+        }
+        .alert("Add Script Feature", isPresented: $showingAddAlert) {
+            TextField("Feature Name (e.g. GodMode)", text: $newName)
+            Button("Add") {
+                HapticManager.trigger(.medium)
+                if !newName.isEmpty {
+                    let newFeature = ScriptFeature(name: newName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
+                    features.append(newFeature)
+                    saveToJson()
+                    newName = ""
+                }
             }
+            .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            
+            Button("Cancel", role: .cancel) { newName = "" }
+        } message: {
+            Text("Enter a name for your custom I32 feature.")
+        }
+        .onAppear {
+            loadFromJson()
         }
     }
     

@@ -64,15 +64,6 @@ struct OutlinedTextField: View {
                     .font(.system(size: 14, design: .monospaced))
                     .focused($isFocused)
                     .disabled(isDisabled)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("เสร็จสิ้น") {
-                                HapticManager.trigger(.light)
-                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                            }
-                        }
-                    }
                 
                 // ปุ่มสลับสถานะ: ถ้ามีข้อความแสดงปุ่ม Clear (xmark), ถ้าว่างแสดงปุ่ม Paste
                 if !isDisabled {
@@ -257,13 +248,19 @@ struct ScriptManagerView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationBarItems(trailing: Button(action: {
-                HapticManager.trigger(.light)
-                showingAddAlert = true
-            }) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title2)
-            })
+            .navigationBarTitle("TrollMemScan")
+            .toolbar {
+                // ปุ่ม + อยู่แถวเดียวกับ Navigation Title ทางขวาบนสุด
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        HapticManager.trigger(.light)
+                        showingAddAlert = true
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                    }
+                }
+            }
             .alert("Add Script Feature", isPresented: $showingAddAlert) {
                 TextField("Feature Name (e.g. GodMode)", text: $newName)
                 Button("Add") {

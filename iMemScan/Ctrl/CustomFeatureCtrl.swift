@@ -41,7 +41,6 @@ struct ScriptFeature: Identifiable, Codable {
     
     enum CodingKeys: String, CodingKey {
         case name, originalValue, modifiedValue, isSaved
-        // 🟢 ตัด isEnabled ออก เพื่อไม่ให้บันทึกลงไฟล์ JSON
     }
     
     init(id: UUID = UUID(), name: String, originalValue: String = "", modifiedValue: String = "", isSaved: Bool = false, isEnabled: Bool = false) {
@@ -68,7 +67,6 @@ struct ScriptFeature: Identifiable, Codable {
         try container.encode(originalValue, forKey: .originalValue)
         try container.encode(modifiedValue, forKey: .modifiedValue)
         try container.encode(isSaved, forKey: .isSaved)
-        // 🟢 ไม่เซฟ isEnabled ลง JSON
     }
 }
 
@@ -228,6 +226,11 @@ struct FeatureCardView: View {
         viewModel.processingFeatureID == feature.id
     }
     
+    // เช็คว่ามีตัวอื่นกำลังโหลดอยู่หรือไม่ (ถ้ามี การ์ดนี้จะถูกล็อกด้วย)
+    var isAnyOtherLoading: Bool {
+        viewModel.processingFeatureID != nil && viewModel.processingFeatureID != feature.id
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -256,7 +259,7 @@ struct FeatureCardView: View {
                     title: "ORIGINAL (I32)",
                     value: feature.originalValue,
                     placeholder: "แตะเพื่อกรอกค่า Original...",
-                    isDisabled: feature.isSaved,
+                    isDisabled: feature.isSaved || isLoading || isAnyOtherLoading,
                     onTap: onEditOriginal
                 )
                 
@@ -264,23 +267,24 @@ struct FeatureCardView: View {
                     title: "MODIFIED (I32)",
                     value: feature.modifiedValue,
                     placeholder: "แตะเพื่อกรอกค่า Modified...",
-                    isDisabled: feature.isSaved,
+                    isDisabled: feature.isSaved || isLoading || isAnyOtherLoading,
                     onTap: onEditModified
                 )
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงานพร้อมรองรับ ActivityIndicator แสดงผลระหว่างโหลด
+            // 🟢 ปุ่มทำงาน: ถ้ากำลังโหลด (isLoading) จะแสดงเฉพาะ ActivityIndicator ไม่มี Text
             Button(action: {
                 onAction()
             }) {
-                HStack(spacing: 8) {
+                Group {
                     if isLoading {
                         ActivityIndicator(isAnimating: true, style: .medium)
+                    } else {
+                        Text(buttonTitle)
+                            .font(.subheadline)
+                            .fontWeight(.bold)
                     }
-                    Text(buttonTitle)
-                        .font(.subheadline)
-                        .fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
@@ -288,8 +292,11 @@ struct FeatureCardView: View {
             .background(buttonBackgroundColor)
             .foregroundColor(.white)
             .cornerRadius(8)
-            .disabled(isLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            .opacity((isLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))) ? 0.5 : 1.0)
+            .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
+            .opacity((isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))) ? 0.5 : 1.0)
+            .transaction { transaction in
+                transaction.animation = nil // ตัดอนิเมชั่นเปลี่ยนสถานะ
+            }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -424,10 +431,9 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            // 🟢 ตั้งค่า ID เพื่อแสดง Loading Spinner ที่ปุ่มเฉพาะการ์ดนี้
+            // 🟢 กำหนด ID กำลังประมวลผล (จะทำให้ปุ่มของการ์ดนี้แสดงเฉพาะ Spinner และล็อกปุ่มของการ์ดอื่นๆ ทั้งหมดทันที)
             viewModel.processingFeatureID = feature.id
             
-            // กำหนดสถานะเป้าหมาย (สลับจากปัจจุบัน) โดยยังไม่เปลี่ยนค่า isEnabled จริงจนกว่าจะสำเร็จ
             let targetEnableState = !feature.isEnabled
             executeVMTool(feature: feature, isApply: targetEnableState)
         }
@@ -445,11 +451,10 @@ struct ScriptManagerView: View {
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
             DispatchQueue.main.async {
-                // 🟢 ปิดสถานะกำลังโหลด
+                // 🟢 ปิดสถานะกำลังโหลด (ปลดล็อกทุกปุ่มให้กดได้ปกติ)
                 self.viewModel.processingFeatureID = nil
                 
                 if count > 0 {
-                    // ทำการแก้ไขค่าใน Memory สำเร็จ
                     for model in array {
                         if let memModel = model as? MemModel {
                             memModel.value = targetVal
@@ -458,7 +463,6 @@ struct ScriptManagerView: View {
                         }
                     }
                     
-                    // 🟢 อัปเดตสถานะ isEnabled เฉพาะตอนสำเร็จใน RAM เท่านั้น
                     if let index = self.viewModel.features.firstIndex(where: { $0.id == feature.id }) {
                         self.viewModel.features[index].isEnabled = isApply
                     }
@@ -466,7 +470,6 @@ struct ScriptManagerView: View {
                     let actionText = isApply ? "Enabled" : "Disabled"
                     viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\(count) addresses)")
                 } else {
-                    // 🔴 กรณี Error / ค้นหาไม่พบ: สถานะปุ่มจะไม่เปลี่ยนและแจ้งเตือน Error
                     viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) สำหรับ \(feature.name)")
                 }
                 VMTool.share().reset()

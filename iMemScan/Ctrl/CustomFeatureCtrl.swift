@@ -9,27 +9,6 @@ import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - UIActivityIndicatorView Wrapper
-struct ActivityIndicator: UIViewRepresentable {
-    var isAnimating: Bool = true
-    var style: UIActivityIndicatorView.Style = .medium
-
-    func makeUIView(context: Context) -> UIActivityIndicatorView {
-        let indicator = UIActivityIndicatorView(style: style)
-        indicator.hidesWhenStopped = true
-        indicator.color = .white // 🟢 ปรับสี Spinner เป็นสีขาว
-        return indicator
-    }
-
-    func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {
-        if isAnimating {
-            uiView.startAnimating()
-        } else {
-            uiView.stopAnimating()
-        }
-    }
-}
-
 // Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON โดยไม่บันทึก isEnabled)
 struct ScriptFeature: Identifiable, Codable {
     var id = UUID()
@@ -226,7 +205,7 @@ struct FeatureCardView: View {
         viewModel.processingFeatureID == feature.id
     }
     
-    // เช็คว่ามีตัวอื่นกำลังโหลดอยู่หรือไม่ (ถ้ามี การ์ดนี้จะถูกล็อกด้วย)
+    // เช็คว่ามีตัวอื่นกำลังประมวลผลอยู่หรือไม่ (ล็อกการ์ดอื่น)
     var isAnyOtherLoading: Bool {
         viewModel.processingFeatureID != nil && viewModel.processingFeatureID != feature.id
     }
@@ -273,21 +252,15 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: ถ้ากำลังโหลด (isLoading) จะแสดงเฉพาะ ActivityIndicator ไม่มี Text
+            // 🟢 ปุ่มทำงาน: แสดงคำว่า "Processing..." แทนข้อความปกติเมื่อกำลังโหลด โดยไม่มีอนิเมชั่น
             Button(action: {
                 onAction()
             }) {
-                Group {
-                    if isLoading {
-                        ActivityIndicator(isAnimating: true, style: .medium)
-                    } else {
-                        Text(buttonTitle)
-                            .font(.subheadline)
-                            .fontWeight(.bold)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                Text(isLoading ? "Processing..." : buttonTitle)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
             }
             .background(buttonBackgroundColor)
             .foregroundColor(.white)
@@ -295,7 +268,7 @@ struct FeatureCardView: View {
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
             .opacity((isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))) ? 0.5 : 1.0)
             .transaction { transaction in
-                transaction.animation = nil // ตัดอนิเมชั่นเปลี่ยนสถานะ
+                transaction.animation = nil // ตัดอนิเมชั่นทั้งหมดเด็ดขาด
             }
         }
         .padding()
@@ -431,7 +404,7 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            // 🟢 กำหนด ID กำลังประมวลผล (จะทำให้ปุ่มของการ์ดนี้แสดงเฉพาะ Spinner และล็อกปุ่มของการ์ดอื่นๆ ทั้งหมดทันที)
+            // 🟢 กำหนด ID กำลังประมวลผล (เปลี่ยนข้อความปุ่มเป็น Processing... และล็อกปุ่มอื่นทันที)
             viewModel.processingFeatureID = feature.id
             
             let targetEnableState = !feature.isEnabled
@@ -451,7 +424,7 @@ struct ScriptManagerView: View {
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
             DispatchQueue.main.async {
-                // 🟢 ปิดสถานะกำลังโหลด (ปลดล็อกทุกปุ่มให้กดได้ปกติ)
+                // 🟢 ปิดสถานะกำลังโหลด (ปลดล็อกทุกปุ่มและคืนข้อความปุ่มปกติ)
                 self.viewModel.processingFeatureID = nil
                 
                 if count > 0 {

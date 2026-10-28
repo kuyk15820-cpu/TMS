@@ -252,7 +252,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: แยกบล็อก Text ชัดเจน ป้องกันอนิเมชั่นเฟดตัวหนังสือ
+            // 🟢 ปุ่มทำงาน: ใช้ .font(system: weight:) รองรับทุก iOS และไม่มีอนิเมชั่น
             Button(action: {
                 onAction()
             }) {
@@ -263,8 +263,7 @@ struct FeatureCardView: View {
                         Text(buttonTitle)
                     }
                 }
-                .font(.subheadline)
-                .fontWeight(.bold)
+                .font(.system(size: 15, weight: .bold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
             }

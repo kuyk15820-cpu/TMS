@@ -252,7 +252,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: แสดงคำว่า "Processing..." แทนข้อความปกติเมื่อกำลังโหลด โดยไม่มีอนิเมชั่น
+            // 🟢 ปุ่มทำงาน: แสดงคำว่า "Processing..." ทันทีเมื่อกำลังโหลด และไม่จางปุ่มตอน Disable
             Button(action: {
                 onAction()
             }) {
@@ -261,12 +261,14 @@ struct FeatureCardView: View {
                     .fontWeight(.bold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
+                    .id(isLoading) // บังคับเปลี่ยน Text ทันทีแบบ Hard Cut ไม่มีเฟด
             }
             .background(buttonBackgroundColor)
             .foregroundColor(.white)
             .cornerRadius(8)
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            .opacity((isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))) ? 0.5 : 1.0)
+            // 🟢 ลบการใส่ opacity ตอน isDisabled ออก เพื่อไม่ให้ปุ่มจาง
+            .opacity((isLoading || isAnyOtherLoading) ? 0.5 : 1.0)
             .transaction { transaction in
                 transaction.animation = nil // ตัดอนิเมชั่นทั้งหมดเด็ดขาด
             }
@@ -404,7 +406,7 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            // 🟢 กำหนด ID กำลังประมวลผล (เปลี่ยนข้อความปุ่มเป็น Processing... และล็อกปุ่มอื่นทันที)
+            // 🟢 กำหนด ID กำลังประมวลผล
             viewModel.processingFeatureID = feature.id
             
             let targetEnableState = !feature.isEnabled
@@ -424,7 +426,7 @@ struct ScriptManagerView: View {
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
             DispatchQueue.main.async {
-                // 🟢 ปิดสถานะกำลังโหลด (ปลดล็อกทุกปุ่มและคืนข้อความปุ่มปกติ)
+                // 🟢 ปิดสถานะกำลังโหลด
                 self.viewModel.processingFeatureID = nil
                 
                 if count > 0 {

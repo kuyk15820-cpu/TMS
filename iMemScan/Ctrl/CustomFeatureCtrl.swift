@@ -9,6 +9,27 @@ import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+// MARK: - UIActivityIndicatorView Wrapper
+struct ActivityIndicator: UIViewRepresentable {
+    var isAnimating: Bool = true
+    var style: UIActivityIndicatorView.Style = .medium
+
+    func makeUIView(context: Context) -> UIActivityIndicatorView {
+        let indicator = UIActivityIndicatorView(style: style)
+        indicator.hidesWhenStopped = true
+        indicator.color = .white // 🟢 ปรับสี Spinner เป็นสีขาว
+        return indicator
+    }
+
+    func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {
+        if isAnimating {
+            uiView.startAnimating()
+        } else {
+            uiView.stopAnimating()
+        }
+    }
+}
+
 // Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON แต่ไม่บันทึก isEnabled)
 struct ScriptFeature: Identifiable, Codable {
     var id = UUID()
@@ -53,6 +74,7 @@ struct ScriptFeature: Identifiable, Codable {
 class ScriptManagerViewModel: ObservableObject {
     @Published var features: [ScriptFeature] = []
     @Published var showingAddAlert: Bool = false
+    @Published var processingFeatureID: UUID? = nil // 🟢 ติดตามสถานะกำลังประมวลผลของแต่ละฟีเจอร์
     
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
@@ -97,7 +119,29 @@ class CustomFeatureCtrl: UIViewController {
         viewModel.showingAddAlert = true
     }
     
-    // ฟังก์ชันแสดง UIAlert พร้อมปุ่ม Clear ของ System (นำปุ่มวางจากคลิปบอร์ดออกแล้ว)
+    // MARK: - FTNotificationIndicator Methods
+    
+    func showSuccessNotification(message: String) {
+        let icon = UIImage(systemName: "checkmark.circle.fill")?.withTintColor(.white, renderingMode: .alwaysOriginal)
+        FTNotificationIndicator.setNotificationIndicatorStyle(.dark)
+        FTNotificationIndicator.showNotification(
+            with: icon,
+            title: "Success",
+            message: message
+        )
+    }
+
+    func showErrorNotification(message: String) {
+        let icon = UIImage(systemName: "exclamationmark.triangle.fill")?.withTintColor(.white, renderingMode: .alwaysOriginal)
+        FTNotificationIndicator.setNotificationIndicatorStyle(.dark)
+        FTNotificationIndicator.showNotification(
+            with: icon,
+            title: "Failed",
+            message: message
+        )
+    }
+    
+    // ฟังก์ชันแสดง UIAlert พร้อมปุ่ม Clear ของ System
     func showValueInputAlert(title: String, message: String, initialValue: String, completion: @escaping (String) -> Void) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         
@@ -107,10 +151,7 @@ class CustomFeatureCtrl: UIViewController {
             textField.placeholder = "909000004 (อย่างน้อย 9 หลัก)"
             textField.text = initialValue
             textField.keyboardType = .numberPad
-            
-            // ใช้ Clear Button ของระบบ iOS (แสดงปุ่มกากบาทเคลียร์ข้อความอัตโนมัติ)
             textField.clearButtonMode = .whileEditing
-            
             targetTextField = textField
         }
         
@@ -161,7 +202,6 @@ struct OutlinedValueView: View {
             .background(isDisabled ? Color(.systemGray6).opacity(0.5) : Color.clear)
             .cornerRadius(8)
             
-            // ป้ายชื่อลอยทับขอบด้านบน
             Text(title)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.secondary)
@@ -182,9 +222,12 @@ struct FeatureCardView: View {
     var onEditOriginal: () -> Void
     var onEditModified: () -> Void
     
+    var isLoading: Bool {
+        viewModel.processingFeatureID == feature.id
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // ส่วนหัวการ์ด: ชื่อฟีเจอร์ และ เมนูสามจุดด้านขวา
             HStack {
                 Text(feature.name)
                     .font(.headline)
@@ -206,7 +249,6 @@ struct FeatureCardView: View {
                 }
             }
             
-            // ช่องแสดงค่า ORIGINAL และ MODIFIED (แตะเพื่อเปิด Alert)
             VStack(spacing: 14) {
                 OutlinedValueView(
                     title: "ORIGINAL (I32)",
@@ -226,21 +268,26 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // ปุ่มทำงานปุ่มเดียว (สลับระหว่าง Save / Enable / Disable)
+            // 🟢 ปุ่มทำงานพร้อมรองรับ ActivityIndicator แสดงผลระหว่างโหลด
             Button(action: {
                 onAction()
             }) {
-                Text(buttonTitle)
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(buttonBackgroundColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ActivityIndicator(isAnimating: true, style: .medium)
+                    }
+                    Text(buttonTitle)
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
             }
-            .disabled(!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))
-            .opacity((!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)) ? 0.5 : 1.0)
+            .background(buttonBackgroundColor)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+            .disabled(isLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
+            .opacity((isLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9))) ? 0.5 : 1.0)
         }
         .padding()
         .background(Color(.systemBackground))
@@ -281,7 +328,6 @@ struct ScriptManagerView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
-                    // แคปซูลแสดงแถบสถานะ
                     HStack(spacing: 8) {
                         Image(systemName: "cpu")
                             .foregroundColor(.accentColor)
@@ -376,33 +422,45 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
+            // 🟢 ตั้งค่า ID ของการ์ดที่กำลังประมวลผล เพื่อแสดง ActivityIndicator ที่ปุ่มนั้น
+            viewModel.processingFeatureID = feature.id
             feature.isEnabled.toggle()
             saveToJson()
-            executeVMTool(original: feature.originalValue, modified: feature.modifiedValue, isApply: feature.isEnabled)
+            executeVMTool(feature: feature, isApply: feature.isEnabled)
         }
     }
     
     // MARK: - ทำงานจริงผ่าน VMTool สไตล์ H5GG
-    func executeVMTool(original: String, modified: String, isApply: Bool) {
+    func executeVMTool(feature: ScriptFeature, isApply: Bool) {
         let valueType = VMMemValueType(rawValue: VMMemValueType.RawValue(VMMemValueTypeSignedInt.rawValue))
         let comparison = VMMemComparisonEQ
         
-        let searchVal = isApply ? original : modified
-        let targetVal = isApply ? modified : original
+        let searchVal = isApply ? feature.originalValue : feature.modifiedValue
+        let targetVal = isApply ? feature.modifiedValue : feature.originalValue
         
         print("Executing -> Search \(searchVal) (I32) -> Edit to \(targetVal) (I32)")
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
-            if count > 0 {
-                for model in array {
-                    if let memModel = model as? MemModel {
-                        memModel.value = targetVal
-                        memModel.type = valueType
-                        VMTool.share().modifyValue(targetVal, address: memModel.address, type: valueType)
+            DispatchQueue.main.async {
+                // 🟢 ปิดสถานะกำลังโหลดเมื่อทำงานเสร็จ
+                self.viewModel.processingFeatureID = nil
+                
+                if count > 0 {
+                    for model in array {
+                        if let memModel = model as? MemModel {
+                            memModel.value = targetVal
+                            memModel.type = valueType
+                            VMTool.share().modifyValue(targetVal, address: memModel.address, type: valueType)
+                        }
                     }
+                    
+                    let actionText = isApply ? "Enabled" : "Disabled"
+                    viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\(count) addresses)")
+                } else {
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) สำหรับ \(feature.name)")
                 }
+                VMTool.share().reset()
             }
-            VMTool.share().reset()
         }
     }
     

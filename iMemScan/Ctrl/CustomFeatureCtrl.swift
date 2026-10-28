@@ -30,7 +30,7 @@ struct ActivityIndicator: UIViewRepresentable {
     }
 }
 
-// Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON แต่ไม่บันทึก isEnabled)
+// Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON โดยไม่บันทึก isEnabled)
 struct ScriptFeature: Identifiable, Codable {
     var id = UUID()
     var name: String
@@ -41,6 +41,7 @@ struct ScriptFeature: Identifiable, Codable {
     
     enum CodingKeys: String, CodingKey {
         case name, originalValue, modifiedValue, isSaved
+        // 🟢 ตัด isEnabled ออก เพื่อไม่ให้บันทึกลงไฟล์ JSON
     }
     
     init(id: UUID = UUID(), name: String, originalValue: String = "", modifiedValue: String = "", isSaved: Bool = false, isEnabled: Bool = false) {
@@ -58,7 +59,7 @@ struct ScriptFeature: Identifiable, Codable {
         originalValue = try container.decodeIfPresent(String.self, forKey: .originalValue) ?? ""
         modifiedValue = try container.decodeIfPresent(String.self, forKey: .modifiedValue) ?? ""
         isSaved = try container.decodeIfPresent(Bool.self, forKey: .isSaved) ?? false
-        isEnabled = false // รีเซ็ตสถานะเปิด/ปิดเป็น false เสมอเมื่อโหลดขึ้นมาใหม่
+        isEnabled = false // 🟢 บังคับให้เป็น false เสมอเมื่อเปิดแอปใหม่
     }
     
     func encode(to encoder: Encoder) throws {
@@ -67,6 +68,7 @@ struct ScriptFeature: Identifiable, Codable {
         try container.encode(originalValue, forKey: .originalValue)
         try container.encode(modifiedValue, forKey: .modifiedValue)
         try container.encode(isSaved, forKey: .isSaved)
+        // 🟢 ไม่เซฟ isEnabled ลง JSON
     }
 }
 
@@ -111,7 +113,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
-        let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus.circle.fill"), style: .plain, target: self, action: #selector(didTapAddButton))
+        let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
         navigationItem.rightBarButtonItems = [addBtn]
     }
 
@@ -122,21 +124,21 @@ class CustomFeatureCtrl: UIViewController {
     // MARK: - FTNotificationIndicator Methods
     
     func showSuccessNotification(message: String) {
-        let icon = UIImage(systemName: "checkmark.circle.fill")?.withTintColor(.white, renderingMode: .alwaysOriginal)
+        let icon = UIImage(systemName: "checkmark.circle")?.withTintColor(.white, renderingMode: .alwaysOriginal)
         FTNotificationIndicator.setNotificationIndicatorStyle(.dark)
         FTNotificationIndicator.showNotification(
             with: icon,
-            title: "Success",
+            title: "สำเร็จ",
             message: message
         )
     }
 
     func showErrorNotification(message: String) {
-        let icon = UIImage(systemName: "exclamationmark.triangle.fill")?.withTintColor(.white, renderingMode: .alwaysOriginal)
+        let icon = UIImage(systemName: "exclamationmark.triangle")?.withTintColor(.white, renderingMode: .alwaysOriginal)
         FTNotificationIndicator.setNotificationIndicatorStyle(.dark)
         FTNotificationIndicator.showNotification(
             with: icon,
-            title: "Failed",
+            title: "ล้มเหลว",
             message: message
         )
     }
@@ -422,11 +424,12 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            // 🟢 ตั้งค่า ID ของการ์ดที่กำลังประมวลผล เพื่อแสดง ActivityIndicator ที่ปุ่มนั้น
+            // 🟢 ตั้งค่า ID เพื่อแสดง Loading Spinner ที่ปุ่มเฉพาะการ์ดนี้
             viewModel.processingFeatureID = feature.id
-            feature.isEnabled.toggle()
-            saveToJson()
-            executeVMTool(feature: feature, isApply: feature.isEnabled)
+            
+            // กำหนดสถานะเป้าหมาย (สลับจากปัจจุบัน) โดยยังไม่เปลี่ยนค่า isEnabled จริงจนกว่าจะสำเร็จ
+            let targetEnableState = !feature.isEnabled
+            executeVMTool(feature: feature, isApply: targetEnableState)
         }
     }
     
@@ -442,10 +445,11 @@ struct ScriptManagerView: View {
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
             DispatchQueue.main.async {
-                // 🟢 ปิดสถานะกำลังโหลดเมื่อทำงานเสร็จ
+                // 🟢 ปิดสถานะกำลังโหลด
                 self.viewModel.processingFeatureID = nil
                 
                 if count > 0 {
+                    // ทำการแก้ไขค่าใน Memory สำเร็จ
                     for model in array {
                         if let memModel = model as? MemModel {
                             memModel.value = targetVal
@@ -454,9 +458,15 @@ struct ScriptManagerView: View {
                         }
                     }
                     
+                    // 🟢 อัปเดตสถานะ isEnabled เฉพาะตอนสำเร็จใน RAM เท่านั้น
+                    if let index = self.viewModel.features.firstIndex(where: { $0.id == feature.id }) {
+                        self.viewModel.features[index].isEnabled = isApply
+                    }
+                    
                     let actionText = isApply ? "Enabled" : "Disabled"
                     viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\(count) addresses)")
                 } else {
+                    // 🔴 กรณี Error / ค้นหาไม่พบ: สถานะปุ่มจะไม่เปลี่ยนและแจ้งเตือน Error
                     viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) สำหรับ \(feature.name)")
                 }
                 VMTool.share().reset()
@@ -464,7 +474,7 @@ struct ScriptManagerView: View {
         }
     }
     
-    // MARK: - จัดการ JSON ใน Application Support (ไม่บันทึกสถานะ isEnabled)
+    // MARK: - จัดการ JSON ใน Application Support
     func getJSONFileURL() -> URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let supportDir = paths[0]

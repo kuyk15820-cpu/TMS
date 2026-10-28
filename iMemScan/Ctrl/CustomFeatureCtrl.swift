@@ -252,22 +252,27 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: แสดงคำว่า "Processing..." ทันทีเมื่อกำลังโหลด และไม่จางปุ่มตอน Disable
+            // 🟢 ปุ่มทำงาน: แยกบล็อก Text ชัดเจน ป้องกันอนิเมชั่นเฟดตัวหนังสือ
             Button(action: {
                 onAction()
             }) {
-                Text(isLoading ? "Processing..." : buttonTitle)
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .id(isLoading) // บังคับเปลี่ยน Text ทันทีแบบ Hard Cut ไม่มีเฟด
+                Group {
+                    if isLoading {
+                        Text("Processing...")
+                    } else {
+                        Text(buttonTitle)
+                    }
+                }
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
             }
             .background(buttonBackgroundColor)
             .foregroundColor(.white)
             .cornerRadius(8)
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            // 🟢 ลบการใส่ opacity ตอน isDisabled ออก เพื่อไม่ให้ปุ่มจาง
+            // 🟢 ให้จางเฉพาะตอนกำลังโหลด (isLoading) หรือตอนการ์ดอื่นโหลด เท่านั้น ปุ่มปกติจะไม่จาง
             .opacity((isLoading || isAnyOtherLoading) ? 0.5 : 1.0)
             .transaction { transaction in
                 transaction.animation = nil // ตัดอนิเมชั่นทั้งหมดเด็ดขาด

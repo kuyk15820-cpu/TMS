@@ -252,7 +252,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: ตัดแอนิเมชั่นการเปลี่ยนสีและการเปลี่ยนข้อความ 100% แบบ Hard Cut
+            // 🟢 ปุ่มทำงาน: ใช้ disablesAnimations = true ปิดแอนิเมชั่นเด็ดขาด
             Button(action: {
                 onAction()
             }) {
@@ -260,7 +260,6 @@ struct FeatureCardView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(buttonBackgroundColor)
                         .frame(height: 40)
-                        .animation(nil, value: buttonBackgroundColor) // ตัดแอนิเมชั่นเปลี่ยนสีพื้นหลังเด็ดขาด
                     
                     Text(isLoading ? "Processing..." : buttonTitle)
                         .font(.system(size: 15, weight: .bold))
@@ -270,7 +269,7 @@ struct FeatureCardView: View {
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
             .opacity((isLoading || isAnyOtherLoading) ? 0.5 : 1.0)
             .transaction { transaction in
-                transaction.animation = nil // ตัดแอนิเมชั่นภาพรวมทั้งหมด
+                transaction.disablesAnimations = true // ปิดแอนิเมชั่นทั้งหมดในระดับ Transaction
             }
         }
         .padding()
@@ -443,7 +442,7 @@ struct ScriptManagerView: View {
                     }
                     
                     let actionText = isApply ? "Enabled" : "Disabled"
-                    viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\(count) addresses)")
+                    viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\n\(count) addresses)")
                 } else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) สำหรับ \(feature.name)")
                 }

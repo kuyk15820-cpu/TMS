@@ -12,8 +12,8 @@ import MediaPlayer
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
-    var window: UIWindow?
-    var audioPlayer:AVAudioPlayer?
+    window: UIWindow?
+    var audioPlayer: AVAudioPlayer?
     
     // 用于保存后台下载的completionHandler
     var backgroundSessionCompletionHandler: (() -> Void)?
@@ -32,15 +32,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
     // 🟢 ฟังก์ชันค้นหาและตั้งค่า PID อัตโนมัติ
     func autoSetTargetProcess() {
-        // ⚠️ เปลี่ยนคำนี้เป็นชื่อแอปเป้าหมายที่กำลังรันอยู่ (เช่น "FreeFire" หรือชื่อที่โชว์ในลิสต์)
-        let targetName = "FreeFire" 
+        // ⚠️ ชื่อแอปเป้าหมายเริ่มต้น (สอดคล้องกับค่า Default ใน ScriptManagerViewModel)
+        let targetName = "FreeFire"
+        let alternateName = "Free Fire"
         
         // ดึงรายการ process ทั้งหมดที่กำลังรันอยู่ผ่าน PidModel
         guard let sections = PidModel.refreshModelArray() as? [[PidModel]] else { return }
         
         for section in sections {
             for model in section {
-                if model.name.contains(targetName) {
+                let modelName = model.name
+                if modelName.localizedCaseInsensitiveContains(targetName) || modelName.localizedCaseInsensitiveContains(alternateName) {
                     if let pidInt = Int32(model.pid) {
                         // เซ็ต PID เข้า VMTool ทันที
                         VMTool.share().setPid(pidInt, name: model.name)

@@ -56,7 +56,7 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var processingFeatureID: UUID? = nil // 🟢 ติดตามสถานะกำลังประมวลผลของแต่ละฟีเจอร์
     
     // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน (Default: Free Fire)
-    @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
+    @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth1", active: true)
     @Published var currentPID: Int32? = nil
     @Published var isAppRunning: Bool = false
     @Published var isAppInstalled: Bool = true // 🟢 สถานะตรวจสอบการติดตั้ง
@@ -220,7 +220,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ตัดปุ่ม Refresh ออกเหลือปุ่ม Launch App เต็มๆ)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -268,7 +268,7 @@ struct TargetAppStatusCard: View {
             
             Divider()
             
-            // ปุ่มเปิดแอป (Launch App แบบเต็มความกว้าง)
+            // ปุ่มเปิดแอป (Launch App)
             Button(action: {
                 guard viewModel.isAppInstalled else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
@@ -407,7 +407,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // ปุ่มทำงาน: ใช้ disablesAnimations = true ปิดแอนิเมชั่นเด็ดขาด
+            // 🟢 ปุ่มทำงาน: คงการล็อก/ปิดใช้งานตอนกำลังโหลดไว้ (disabled) แต่เอาความจาง (.opacity) ออก
             Button(action: {
                 onAction()
             }) {
@@ -422,7 +422,6 @@ struct FeatureCardView: View {
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            .opacity((isLoading || isAnyOtherLoading) ? 0.5 : 1.0)
             .transaction { transaction in
                 transaction.disablesAnimations = true
             }
@@ -604,14 +603,14 @@ struct ScriptManagerView: View {
         }
     }
     
-    // MARK: - จัดการ JSON ใน Application Support
+    // MARK: - จัดการ JSON ใน Document Directory ภายใต้โฟลเดอร์ TrollMemScan/trollmemscan.json
     func getJSONFileURL() -> URL {
-        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let supportDir = paths[0]
-        if !FileManager.default.fileExists(atPath: supportDir.path) {
-            try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
+        let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let trollDir = docDir.appendingPathComponent("TrollMemScan")
+        if !FileManager.default.fileExists(atPath: trollDir.path) {
+            try? FileManager.default.createDirectory(at: trollDir, withIntermediateDirectories: true)
         }
-        return supportDir.appendingPathComponent("trollmemscan_features.json")
+        return trollDir.appendingPathComponent("trollmemscan.json")
     }
     
     func saveToJson() {

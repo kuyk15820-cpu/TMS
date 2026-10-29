@@ -12,7 +12,7 @@ import MediaPlayer
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
-    window: UIWindow?
+    var window: UIWindow?
     var audioPlayer: AVAudioPlayer?
     
     // 用于保存后台下载的completionHandler

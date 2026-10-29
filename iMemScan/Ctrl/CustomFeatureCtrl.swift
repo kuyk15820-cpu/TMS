@@ -619,3 +619,4 @@ struct ScriptManagerView: View {
         viewModel.features = decoded
     }
 }
+

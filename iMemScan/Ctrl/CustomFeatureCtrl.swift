@@ -59,7 +59,7 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
     @Published var currentPID: Int32? = nil
     @Published var isAppRunning: Bool = false
-    @Published var isAppInstalled: Bool = true // 🟢 เพิ่มสถานะตรวจสอบการติดตั้ง
+    @Published var isAppInstalled: Bool = true // 🟢 สถานะตรวจสอบการติดตั้ง
     
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
@@ -76,11 +76,11 @@ class ScriptManagerViewModel: ObservableObject {
     func checkAppInstallation() {
         isAppInstalled = false
         if let workspaceClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type,
-           let workspace = workspaceClass.perform(Selector("defaultWorkspace"))?.takeUnretainedValue() as? NSObject {
+           let workspace = workspaceClass.perform(Selector(("defaultWorkspace")))?.takeUnretainedValue() as? NSObject {
             
-            if let installedApps = workspace.perform(Selector("allInstalledApplications"))?.takeUnretainedValue() as? [NSObject] {
+            if let installedApps = workspace.perform(Selector(("allInstalledApplications")))?.takeUnretainedValue() as? [NSObject] {
                 for app in installedApps {
-                    if let appBundleID = app.perform(Selector("applicationIdentifier"))?.takeUnretainedValue() as? String,
+                    if let appBundleID = app.perform(Selector(("applicationIdentifier")))?.takeUnretainedValue() as? String,
                        appBundleID == targetApp.bundleID {
                         isAppInstalled = true
                         break
@@ -140,11 +140,24 @@ class CustomFeatureCtrl: UIViewController {
         
         updateNavigationButton()
         viewModel.refreshTargetStatus()
+        
+        // 🟢 ดักจับเหตุการณ์เมื่อแอปกลับมาทำงานหน้าจอหลัก (Foreground) เพื่อรีเฟรชสถานะ PID อัตโนมัติ
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.viewModel.refreshTargetStatus()
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         viewModel.refreshTargetStatus()
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self, name: UIApplication.willEnterForegroundNotification, object: nil)
     }
 
     func updateNavigationButton() {
@@ -185,7 +198,7 @@ class CustomFeatureCtrl: UIViewController {
         var targetTextField: UITextField?
         
         alert.addTextField { textField in
-            textField.placeholder = "909000004 (อย่างน้อย 9 หลัก)"
+            textField.placeholder = "เช่น 909000001 (อย่างน้อย 9 หลัก)"
             textField.text = initialValue
             textField.keyboardType = .numberPad
             textField.clearButtonMode = .whileEditing
@@ -207,7 +220,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (แทนที่แถบสถานะฟีเจอร์เดิม)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ตัดปุ่ม Refresh ออกเหลือปุ่ม Launch App เต็มๆ)
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -255,45 +268,29 @@ struct TargetAppStatusCard: View {
             
             Divider()
             
-            HStack(spacing: 10) {
-                // ปุ่ม Refresh สถานะ Process
-                Button(action: {
-                    viewModel.refreshTargetStatus()
-                    viewModel.parentVC?.showSuccessNotification(message: "รีเฟรชสถานะ Process สำเร็จ")
-                }) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color(.secondarySystemBackground))
-                        .foregroundColor(.primary)
-                        .cornerRadius(8)
+            // ปุ่มเปิดแอป (Launch App แบบเต็มความกว้าง)
+            Button(action: {
+                guard viewModel.isAppInstalled else {
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
+                    return
                 }
-                
-                // ปุ่มเปิดแอป (Launch App)
-                Button(action: {
-                    guard viewModel.isAppInstalled else {
-                        viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
-                        return
+                let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
+                if success {
+                    viewModel.parentVC?.showSuccessNotification(message: "กำลังเปิด \(viewModel.targetApp.name)...")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        viewModel.refreshTargetStatus()
                     }
-                    let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
-                    if success {
-                        viewModel.parentVC?.showSuccessNotification(message: "กำลังเปิด \(viewModel.targetApp.name)...")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            viewModel.refreshTargetStatus()
-                        }
-                    } else {
-                        viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
-                    }
-                }) {
-                    Label("Launch App", systemImage: "play.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
+                } else {
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
                 }
+            }) {
+                Label("เปิดแอป", systemImage: "play")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
             }
         }
         .padding()
@@ -393,17 +390,17 @@ struct FeatureCardView: View {
             
             VStack(spacing: 14) {
                 OutlinedValueView(
-                    title: "ORIGINAL (I32)",
+                    title: "ค่าต้นฉบับ",
                     value: feature.originalValue,
-                    placeholder: "แตะเพื่อกรอกค่า Original...",
+                    placeholder: "แตะเพื่อกรอกค่าต้นฉบับ...",
                     isDisabled: feature.isSaved || isLoading || isAnyOtherLoading,
                     onTap: onEditOriginal
                 )
                 
                 OutlinedValueView(
-                    title: "MODIFIED (I32)",
+                    title: "ค่าที่ต้องการแก้ไข",
                     value: feature.modifiedValue,
-                    placeholder: "แตะเพื่อกรอกค่า Modified...",
+                    placeholder: "แตะเพื่อกรอกค่าที่ต้องการแก้ไข...",
                     isDisabled: feature.isSaved || isLoading || isAnyOtherLoading,
                     onTap: onEditModified
                 )
@@ -419,7 +416,7 @@ struct FeatureCardView: View {
                         .fill(buttonBackgroundColor)
                         .frame(height: 40)
                     
-                    Text(isLoading ? "Processing..." : buttonTitle)
+                    Text(isLoading ? "กำลังประมวลผล..." : buttonTitle)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.white)
                 }
@@ -442,9 +439,9 @@ struct FeatureCardView: View {
     
     var buttonTitle: String {
         if !feature.isSaved {
-            return "Save"
+            return "บันทึก"
         } else {
-            return feature.isEnabled ? "Disable" : "Enable"
+            return feature.isEnabled ? "ปิดใช้งาน" : "เปิดใช้งาน"
         }
     }
     
@@ -466,7 +463,6 @@ struct ScriptManagerView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
-                    // 🟢 แทนที่แถบสถานะเดิมด้วย TargetAppStatusCard
                     TargetAppStatusCard(viewModel: viewModel)
                         .padding(.top, 8)
                     
@@ -486,8 +482,8 @@ struct ScriptManagerView: View {
                                 },
                                 onEditOriginal: {
                                     viewModel.parentVC?.showValueInputAlert(
-                                        title: "Edit Original Value",
-                                        message: "กรอกค่า Original (I32) อย่างน้อย 9 หลัก",
+                                        title: "ค่าต้นฉบับ",
+                                        message: "กรอกค่าต้นฉบับ อย่างน้อย 9 หลัก",
                                         initialValue: feature.originalValue
                                     ) { newValue in
                                         feature.originalValue = newValue
@@ -496,8 +492,8 @@ struct ScriptManagerView: View {
                                 },
                                 onEditModified: {
                                     viewModel.parentVC?.showValueInputAlert(
-                                        title: "Edit Modified Value",
-                                        message: "กรอกค่า Modified (I32) อย่างน้อย 9 หลัก",
+                                        title: "ค่าที่ต้องการแก้ไข",
+                                        message: "กรอกค่าที่ต้องการแก้ไข อย่างน้อย 9 หลัก",
                                         initialValue: feature.modifiedValue
                                     ) { newValue in
                                         feature.modifiedValue = newValue
@@ -516,9 +512,9 @@ struct ScriptManagerView: View {
                 loadFromJson()
                 viewModel.refreshTargetStatus()
             }
-            .alert("Add Script Feature", isPresented: $viewModel.showingAddAlert) {
-                TextField("Feature Name (e.g. GodMode)", text: $newName)
-                Button("Add") {
+            .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
+                TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
+                Button("เพิ่ม") {
                     let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmedName.isEmpty {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -533,11 +529,11 @@ struct ScriptManagerView: View {
                     }
                 }
                 
-                Button("Cancel", role: .cancel) {
+                Button("ยกเลิก", role: .cancel) {
                     newName = ""
                 }
             } message: {
-                Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรุณากรอกชื่อฟีเจอร์ก่อนกด Add" : "Enter a name for your custom I32 feature.")
+                Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
             }
         }
     }
@@ -552,14 +548,13 @@ struct ScriptManagerView: View {
             // 🟢 อัปเดตเช็กสถานะแอปและการติดตั้งก่อนทำการ Enable/Disable
             viewModel.refreshTargetStatus()
             
-            // 🟢 เงื่อนไขตรวจสอบ: ถ้าไม่ได้ติดตั้งหรือไม่ได้รัน ให้แจ้งเตือนตามเงื่อนไขที่ต้องการ
             guard viewModel.isAppInstalled else {
                 viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชัน")
                 return
             }
             
             guard viewModel.isAppRunning else {
-                viewModel.parentVC?.showErrorNotification(message: "ไม่ได้เปิดแอป หรือไม่ได้ติดตั้งแอป")
+                viewModel.parentVC?.showErrorNotification(message: "ไม่ได้เปิดแอป กรุณาเปิดแอปก่อนเปิดใช้งานฟีเจอร์")
                 return
             }
             
@@ -602,7 +597,7 @@ struct ScriptManagerView: View {
                     let actionText = isApply ? "Enabled" : "Disabled"
                     viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\n\(count) addresses)")
                 } else {
-                    viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) สำหรับ \(feature.name)")
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) ของฟีเจอร์ \(feature.name)")
                 }
                 VMTool.share().reset()
             }
@@ -616,7 +611,7 @@ struct ScriptManagerView: View {
         if !FileManager.default.fileExists(atPath: supportDir.path) {
             try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
         }
-        return supportDir.appendingPathComponent("swiftui_h5gg_features.json")
+        return supportDir.appendingPathComponent("trollmemscan_features.json")
     }
     
     func saveToJson() {

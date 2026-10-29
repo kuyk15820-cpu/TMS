@@ -9,7 +9,7 @@ import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Model สำหรับจัดการข้อมูลฟีเจอร์ (รองรับ Codable สำหรับ JSON โดยไม่บันทึก isEnabled)
+// Model สำหรับจัดการข้อมูลฟีเจอร์ (ไม่บันทึก isEnabled ลง JSON)
 struct ScriptFeature: Identifiable, Codable {
     var id = UUID()
     var name: String
@@ -37,7 +37,7 @@ struct ScriptFeature: Identifiable, Codable {
         originalValue = try container.decodeIfPresent(String.self, forKey: .originalValue) ?? ""
         modifiedValue = try container.decodeIfPresent(String.self, forKey: .modifiedValue) ?? ""
         isSaved = try container.decodeIfPresent(Bool.self, forKey: .isSaved) ?? false
-        isEnabled = false // 🟢 บังคับให้เป็น false เสมอเมื่อเปิดแอปใหม่
+        isEnabled = false // 🟢 บังคับให้เป็น false เสมอเมื่อเปิดแอปใหม่ ไม่จำสถานะเปิด/ปิด
     }
     
     func encode(to encoder: Encoder) throws {
@@ -46,6 +46,7 @@ struct ScriptFeature: Identifiable, Codable {
         try container.encode(originalValue, forKey: .originalValue)
         try container.encode(modifiedValue, forKey: .modifiedValue)
         try container.encode(isSaved, forKey: .isSaved)
+        // ไม่ทำการ encode ค่า isEnabled เพื่อไม่ให้จำสถานะเปิด/ปิด
     }
 }
 
@@ -53,13 +54,13 @@ struct ScriptFeature: Identifiable, Codable {
 class ScriptManagerViewModel: ObservableObject {
     @Published var features: [ScriptFeature] = []
     @Published var showingAddAlert: Bool = false
-    @Published var processingFeatureID: UUID? = nil // 🟢 ติดตามสถานะกำลังประมวลผลของแต่ละฟีเจอร์
+    @Published var processingFeatureID: UUID? = nil
     
-    // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน (Default: Free Fire)
+    // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน
     @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth1", active: true)
     @Published var currentPID: Int32? = nil
     @Published var isAppRunning: Bool = false
-    @Published var isAppInstalled: Bool = true // 🟢 สถานะตรวจสอบการติดตั้ง
+    @Published var isAppInstalled: Bool = true
     
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
@@ -72,7 +73,7 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
-    // 🟢 ตรวจสอบสถานะการติดตั้งแอปผ่าน LSApplicationWorkspace
+    // 🟢 ตรวจสอบสถานะการติดตั้งแอปผ่าน LSApplicationWorkspace แบบแม่นยำ
     func checkAppInstallation() {
         isAppInstalled = false
         if let workspaceClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type,
@@ -81,7 +82,7 @@ class ScriptManagerViewModel: ObservableObject {
             if let installedApps = workspace.perform(Selector(("allInstalledApplications")))?.takeUnretainedValue() as? [NSObject] {
                 for app in installedApps {
                     if let appBundleID = app.perform(Selector(("applicationIdentifier")))?.takeUnretainedValue() as? String,
-                       appBundleID == targetApp.bundleID {
+                       appBundleID.lowercased() == targetApp.bundleID.lowercased() {
                         isAppInstalled = true
                         break
                     }
@@ -90,7 +91,7 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
-    // 🟢 ตรวจสอบสถานะ Process, PID และการติดตั้งของแอปเป้าหมายปัจจุบัน
+    // 🟢 ตรวจสอบสถานะ Process และ PID ให้ตรงเป๊ะ ป้องกันการจับโปรเซสผิดพลาด
     func refreshTargetStatus() {
         checkAppInstallation()
         
@@ -106,8 +107,8 @@ class ScriptManagerViewModel: ObservableObject {
         for section in sections {
             for model in section {
                 let modelName = model.name.lowercased()
-                if modelName.contains(targetName) || targetBundle.contains(modelName) {
-                    if let pidInt = Int32(model.pid) {
+                if modelName == targetName || modelName.contains(targetBundle) || (modelName.contains(targetName) && targetName.count > 3) {
+                    if let pidInt = Int32(model.pid), pidInt > 0 {
                         currentPID = pidInt
                         isAppRunning = true
                         VMTool.share().setPid(pidInt, name: model.name)
@@ -141,7 +142,7 @@ class CustomFeatureCtrl: UIViewController {
         updateNavigationButton()
         viewModel.refreshTargetStatus()
         
-        // 🟢 ดักจับเหตุการณ์เมื่อแอปกลับมาทำงานหน้าจอหลัก (Foreground) เพื่อรีเฟรชสถานะ PID อัตโนมัติ
+        // 🟢 ดักจับเหตุการณ์เมื่อแอปกลับมาทำงานหน้าจอหลัก (Foreground)
         NotificationCenter.default.addObserver(
             forName: UIApplication.willEnterForegroundNotification,
             object: nil,
@@ -169,8 +170,6 @@ class CustomFeatureCtrl: UIViewController {
         viewModel.showingAddAlert = true
     }
     
-    // MARK: - FTNotificationIndicator Methods
-    
     func showSuccessNotification(message: String) {
         let icon = UIImage(systemName: "checkmark.circle")?.withTintColor(.white, renderingMode: .alwaysOriginal)
         FTNotificationIndicator.setNotificationIndicatorStyle(.dark)
@@ -191,10 +190,8 @@ class CustomFeatureCtrl: UIViewController {
         )
     }
     
-    // ฟังก์ชันแสดง UIAlert พร้อมปุ่ม Clear ของ System
     func showValueInputAlert(title: String, message: String, initialValue: String, completion: @escaping (String) -> Void) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        
         var targetTextField: UITextField?
         
         alert.addTextField { textField in
@@ -210,9 +207,7 @@ class CustomFeatureCtrl: UIViewController {
                 completion(text)
             }
         }
-        
         let cancelAction = UIAlertAction(title: "ยกเลิก", style: .cancel, handler: nil)
-        
         alert.addAction(saveAction)
         alert.addAction(cancelAction)
         
@@ -227,7 +222,6 @@ struct TargetAppStatusCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                // App Icon
                 if let icon = viewModel.targetApp.icon {
                     Image(uiImage: icon)
                         .resizable()
@@ -251,7 +245,6 @@ struct TargetAppStatusCard: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     
-                    // Status Badge
                     HStack(spacing: 6) {
                         Circle()
                             .fill(!viewModel.isAppInstalled ? Color.red : (viewModel.isAppRunning ? Color.green : Color.orange))
@@ -268,7 +261,6 @@ struct TargetAppStatusCard: View {
             
             Divider()
             
-            // ปุ่มเปิดแอป (Launch App)
             Button(action: {
                 guard viewModel.isAppInstalled else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
@@ -292,6 +284,7 @@ struct TargetAppStatusCard: View {
                     .foregroundColor(.white)
                     .cornerRadius(8)
             }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding()
         .background(Color(.systemBackground))
@@ -304,7 +297,6 @@ struct TargetAppStatusCard: View {
     }
 }
 
-// Custom Read-Only Input Box
 struct OutlinedValueView: View {
     let title: String
     let value: String
@@ -347,7 +339,6 @@ struct OutlinedValueView: View {
     }
 }
 
-// Sub-view สำหรับการ์ดแต่ละรายการ
 struct FeatureCardView: View {
     @Binding var feature: ScriptFeature
     @ObservedObject var viewModel: ScriptManagerViewModel
@@ -360,7 +351,6 @@ struct FeatureCardView: View {
         viewModel.processingFeatureID == feature.id
     }
     
-    // เช็คว่ามีตัวอื่นกำลังประมวลผลอยู่หรือไม่ (ล็อกการ์ดอื่น)
     var isAnyOtherLoading: Bool {
         viewModel.processingFeatureID != nil && viewModel.processingFeatureID != feature.id
     }
@@ -407,13 +397,13 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: คงการล็อก/ปิดใช้งานตอนกำลังโหลดไว้ (disabled) แต่เอาความจาง (.opacity) ออก
+            // 🟢 ใช้สีฟ้า (Color.accentColor) ตอนกำลังประมวลผล และบังคับ Opacity = 1.0 เสมอ ไม่ให้จางตอนกดค้าง
             Button(action: {
                 onAction()
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(buttonBackgroundColor)
+                        .fill(isLoading ? Color.accentColor : buttonBackgroundColor)
                         .frame(height: 40)
                     
                     Text(isLoading ? "กำลังประมวลผล..." : buttonTitle)
@@ -422,6 +412,8 @@ struct FeatureCardView: View {
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
+            .opacity(1.0)
+            .buttonStyle(PlainButtonStyle())
             .transaction { transaction in
                 transaction.disablesAnimations = true
             }
@@ -453,7 +445,6 @@ struct FeatureCardView: View {
     }
 }
 
-// SwiftUI Implementation with Custom UI Design
 struct ScriptManagerView: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     @State private var newName = ""
@@ -544,7 +535,6 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            // 🟢 อัปเดตเช็กสถานะแอปและการติดตั้งก่อนทำการ Enable/Disable
             viewModel.refreshTargetStatus()
             
             guard viewModel.isAppInstalled else {
@@ -557,7 +547,6 @@ struct ScriptManagerView: View {
                 return
             }
             
-            // 🟢 กำหนด ID กำลังประมวลผล
             viewModel.processingFeatureID = feature.id
             
             let targetEnableState = !feature.isEnabled
@@ -565,7 +554,6 @@ struct ScriptManagerView: View {
         }
     }
     
-    // MARK: - ทำงานจริงผ่าน VMTool สไตล์ H5GG
     func executeVMTool(feature: ScriptFeature, isApply: Bool) {
         let valueType = VMMemValueType(rawValue: VMMemValueType.RawValue(VMMemValueTypeSignedInt.rawValue))
         let comparison = VMMemComparisonEQ
@@ -577,7 +565,6 @@ struct ScriptManagerView: View {
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
             DispatchQueue.main.async {
-                // 🟢 ปิดสถานะกำลังโหลด
                 self.viewModel.processingFeatureID = nil
                 
                 if count > 0 {
@@ -593,6 +580,9 @@ struct ScriptManagerView: View {
                         self.viewModel.features[index].isEnabled = isApply
                     }
                     
+                    // บันทึกเฉพาะข้อมูลฟีเจอร์ (ชื่อและค่า I32) ลง JSON โดยไม่บันทึก isEnabled
+                    saveToJson()
+                    
                     let actionText = isApply ? "Enabled" : "Disabled"
                     viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\n\(count) addresses)")
                 } else {
@@ -603,7 +593,6 @@ struct ScriptManagerView: View {
         }
     }
     
-    // MARK: - จัดการ JSON ใน Document Directory ภายใต้โฟลเดอร์ TrollMemScan/trollmemscan.json
     func getJSONFileURL() -> URL {
         let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let trollDir = docDir.appendingPathComponent("TrollMemScan")

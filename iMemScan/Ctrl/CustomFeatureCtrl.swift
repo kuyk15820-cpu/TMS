@@ -252,7 +252,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: ใช้สไตล์ ZStack + Ternary Operator แบบเดียวกับ RegisterView นิ่งสนิทไม่มีเฟด
+            // 🟢 ปุ่มทำงาน: ตัดแอนิเมชั่นการเปลี่ยนสีและการเปลี่ยนข้อความ 100% แบบ Hard Cut
             Button(action: {
                 onAction()
             }) {
@@ -260,6 +260,7 @@ struct FeatureCardView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(buttonBackgroundColor)
                         .frame(height: 40)
+                        .animation(nil, value: buttonBackgroundColor) // ตัดแอนิเมชั่นเปลี่ยนสีพื้นหลังเด็ดขาด
                     
                     Text(isLoading ? "Processing..." : buttonTitle)
                         .font(.system(size: 15, weight: .bold))
@@ -269,7 +270,7 @@ struct FeatureCardView: View {
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
             .opacity((isLoading || isAnyOtherLoading) ? 0.5 : 1.0)
             .transaction { transaction in
-                transaction.animation = nil // ตัดอนิเมชั่นทั้งหมดเด็ดขาด
+                transaction.animation = nil // ตัดแอนิเมชั่นภาพรวมทั้งหมด
             }
         }
         .padding()

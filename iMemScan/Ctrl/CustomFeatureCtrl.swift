@@ -294,6 +294,9 @@ struct TargetAppStatusCard: View {
                 .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
         )
         .padding(.horizontal)
+        .onAppear {
+            viewModel.refreshTargetStatus()
+        }
     }
 }
 
@@ -532,7 +535,7 @@ struct ScriptManagerView: View {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
-                saveToJson()
+                saveToJson() // 🟢 เพิ่มการเรียกบันทึกทันทีเมื่อกดปุ่ม Save สำเร็จ เพื่อให้อัปเดตข้อมูลทุกฟีเจอร์ลงไฟล์ JSON ทันที
             }
         } else {
             viewModel.refreshTargetStatus()
@@ -579,9 +582,6 @@ struct ScriptManagerView: View {
                     if let index = self.viewModel.features.firstIndex(where: { $0.id == feature.id }) {
                         self.viewModel.features[index].isEnabled = isApply
                     }
-                    
-                    // บันทึกเฉพาะข้อมูลฟีเจอร์ (ชื่อและค่า I32) ลง JSON โดยไม่บันทึก isEnabled
-                    saveToJson()
                     
                     let actionText = isApply ? "Enabled" : "Disabled"
                     viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\n\(count) addresses)")

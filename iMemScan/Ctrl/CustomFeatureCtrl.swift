@@ -55,6 +55,11 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var showingAddAlert: Bool = false
     @Published var processingFeatureID: UUID? = nil // 🟢 ติดตามสถานะกำลังประมวลผลของแต่ละฟีเจอร์
     
+    // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน (Default: Free Fire)
+    @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
+    @Published var currentPID: Int32? = nil
+    @Published var isAppRunning: Bool = false
+    
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
     
@@ -62,6 +67,31 @@ class ScriptManagerViewModel: ObservableObject {
         if let lastID = features.last?.id {
             withAnimation {
                 scrollToProxy?.scrollTo(lastID, anchor: .bottom)
+            }
+        }
+    }
+    
+    // 🟢 ตรวจสอบสถานะ Process และ PID ของแอปเป้าหมายปัจจุบัน
+    func refreshTargetStatus() {
+        currentPID = nil
+        isAppRunning = false
+        
+        guard let sections = PidModel.refreshModelArray() as? [[PidModel]] else { return }
+        
+        let targetName = targetApp.name.lowercased()
+        let targetBundle = targetApp.bundleID.lowercased()
+        
+        for section in sections {
+            for model in section {
+                let modelName = model.name.lowercased()
+                if modelName.contains(targetName) || targetBundle.contains(modelName) {
+                    if let pidInt = Int32(model.pid) {
+                        currentPID = pidInt
+                        isAppRunning = true
+                        VMTool.share().setPid(pidInt, name: model.name)
+                        return
+                    }
+                }
             }
         }
     }
@@ -87,6 +117,12 @@ class CustomFeatureCtrl: UIViewController {
         hostingController.didMove(toParent: self)
         
         updateNavigationButton()
+        viewModel.refreshTargetStatus()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        viewModel.refreshTargetStatus()
     }
 
     func updateNavigationButton() {
@@ -146,6 +182,102 @@ class CustomFeatureCtrl: UIViewController {
         alert.addAction(cancelAction)
         
         present(alert, animated: true, completion: nil)
+    }
+}
+
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (แทนที่แถบสถานะฟีเจอร์เดิม)
+struct TargetAppStatusCard: View {
+    @ObservedObject var viewModel: ScriptManagerViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                // App Icon
+                if let icon = viewModel.targetApp.icon {
+                    Image(uiImage: icon)
+                        .resizable()
+                        .frame(width: 50, height: 50)
+                        .cornerRadius(10)
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.secondary.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                        .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.targetApp.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Text(viewModel.targetApp.bundleID)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    
+                    // Status Badge
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(viewModel.isAppRunning ? Color.green : Color.orange)
+                            .frame(width: 8, height: 8)
+                        
+                        Text(viewModel.isAppRunning ? "Running (PID: \(viewModel.currentPID ?? 0))" : "Not Running")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(viewModel.isAppRunning ? .green : .orange)
+                    }
+                }
+                
+                Spacer()
+            }
+            
+            Divider()
+            
+            HStack(spacing: 10) {
+                // ปุ่ม Refresh สถานะ Process
+                Button(action: {
+                    viewModel.refreshTargetStatus()
+                    viewModel.parentVC?.showSuccessNotification(message: "รีเฟรชสถานะ Process สำเร็จ")
+                }) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color(.secondarySystemBackground))
+                        .foregroundColor(.primary)
+                        .cornerRadius(8)
+                }
+                
+                // ปุ่มเปิดแอป (Launch App)
+                Button(action: {
+                    let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
+                    if success {
+                        viewModel.parentVC?.showSuccessNotification(message: "กำลังเปิด \(viewModel.targetApp.name)...")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            viewModel.refreshTargetStatus()
+                        }
+                    } else {
+                        viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้ หรือไม่ได้ติดตั้งแอป")
+                    }
+                }) {
+                    Label("Launch App", systemImage: "play.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+        )
+        .padding(.horizontal)
     }
 }
 
@@ -252,7 +384,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: ใช้ disablesAnimations = true ปิดแอนิเมชั่นเด็ดขาด
+            // ปุ่มทำงาน: ใช้ disablesAnimations = true ปิดแอนิเมชั่นเด็ดขาด
             Button(action: {
                 onAction()
             }) {
@@ -269,7 +401,7 @@ struct FeatureCardView: View {
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
             .opacity((isLoading || isAnyOtherLoading) ? 0.5 : 1.0)
             .transaction { transaction in
-                transaction.disablesAnimations = true // ปิดแอนิเมชั่นทั้งหมดในระดับ Transaction
+                transaction.disablesAnimations = true
             }
         }
         .padding()
@@ -304,28 +436,13 @@ struct ScriptManagerView: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     @State private var newName = ""
     
-    var totalCount: Int { viewModel.features.count }
-    var activeCount: Int { viewModel.features.filter { $0.isEnabled }.count }
-    
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "cpu")
-                            .foregroundColor(.accentColor)
-                        Text("รายการฟีเจอร์: \(totalCount)")
-                        Text("|")
-                            .foregroundColor(.secondary)
-                        Text("ใช้งานอยู่: \(activeCount)")
-                            .foregroundColor(activeCount > 0 ? .green : .secondary)
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(Capsule())
-                    .padding(.top, 8)
+                    // 🟢 แทนที่แถบสถานะเดิมด้วย TargetAppStatusCard
+                    TargetAppStatusCard(viewModel: viewModel)
+                        .padding(.top, 8)
                     
                     LazyVStack(spacing: 16) {
                         ForEach($viewModel.features) { $feature in
@@ -371,6 +488,7 @@ struct ScriptManagerView: View {
             .onAppear {
                 viewModel.scrollToProxy = proxy
                 loadFromJson()
+                viewModel.refreshTargetStatus()
             }
             .alert("Add Script Feature", isPresented: $viewModel.showingAddAlert) {
                 TextField("Feature Name (e.g. GodMode)", text: $newName)
@@ -405,6 +523,15 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
+            // 🟢 อัปเดตเช็กสถานะแอปก่อนทำการ Enable/Disable
+            viewModel.refreshTargetStatus()
+            
+            // 🟢 ถ้าแอปเป้าหมายยังไม่ได้รันอยู่ ให้แจ้งเตือนและยกเลิกการทำงาน
+            guard viewModel.isAppRunning else {
+                viewModel.parentVC?.showErrorNotification(message: "ไม่ได้เปิดแอป หรือไม่ได้ติดตั้งแอป")
+                return
+            }
+            
             // 🟢 กำหนด ID กำลังประมวลผล
             viewModel.processingFeatureID = feature.id
             

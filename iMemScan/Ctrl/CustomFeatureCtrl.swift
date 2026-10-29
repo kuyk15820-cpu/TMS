@@ -252,26 +252,21 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มทำงาน: ใช้ .font(system: weight:) รองรับทุก iOS และไม่มีอนิเมชั่น
+            // 🟢 ปุ่มทำงาน: ใช้สไตล์ ZStack + Ternary Operator แบบเดียวกับ RegisterView นิ่งสนิทไม่มีเฟด
             Button(action: {
                 onAction()
             }) {
-                Group {
-                    if isLoading {
-                        Text("Processing...")
-                    } else {
-                        Text(buttonTitle)
-                    }
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(buttonBackgroundColor)
+                        .frame(height: 40)
+                    
+                    Text(isLoading ? "Processing..." : buttonTitle)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
                 }
-                .font(.system(size: 15, weight: .bold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
             }
-            .background(buttonBackgroundColor)
-            .foregroundColor(.white)
-            .cornerRadius(8)
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            // 🟢 ให้จางเฉพาะตอนกำลังโหลด (isLoading) หรือตอนการ์ดอื่นโหลด เท่านั้น ปุ่มปกติจะไม่จาง
             .opacity((isLoading || isAnyOtherLoading) ? 0.5 : 1.0)
             .transaction { transaction in
                 transaction.animation = nil // ตัดอนิเมชั่นทั้งหมดเด็ดขาด

@@ -59,6 +59,7 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
     @Published var currentPID: Int32? = nil
     @Published var isAppRunning: Bool = false
+    @Published var isAppInstalled: Bool = true // 🟢 เพิ่มสถานะตรวจสอบการติดตั้ง
     
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
@@ -71,11 +72,32 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
-    // 🟢 ตรวจสอบสถานะ Process และ PID ของแอปเป้าหมายปัจจุบัน
+    // 🟢 ตรวจสอบสถานะการติดตั้งแอปผ่าน LSApplicationWorkspace
+    func checkAppInstallation() {
+        isAppInstalled = false
+        if let workspaceClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type,
+           let workspace = workspaceClass.perform(Selector("defaultWorkspace"))?.takeUnretainedValue() as? NSObject {
+            
+            if let installedApps = workspace.perform(Selector("allInstalledApplications"))?.takeUnretainedValue() as? [NSObject] {
+                for app in installedApps {
+                    if let appBundleID = app.perform(Selector("applicationIdentifier"))?.takeUnretainedValue() as? String,
+                       appBundleID == targetApp.bundleID {
+                        isAppInstalled = true
+                        break
+                    }
+                }
+            }
+        }
+    }
+    
+    // 🟢 ตรวจสอบสถานะ Process, PID และการติดตั้งของแอปเป้าหมายปัจจุบัน
     func refreshTargetStatus() {
+        checkAppInstallation()
+        
         currentPID = nil
         isAppRunning = false
         
+        guard isAppInstalled else { return }
         guard let sections = PidModel.refreshModelArray() as? [[PidModel]] else { return }
         
         let targetName = targetApp.name.lowercased()
@@ -219,12 +241,12 @@ struct TargetAppStatusCard: View {
                     // Status Badge
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(viewModel.isAppRunning ? Color.green : Color.orange)
+                            .fill(!viewModel.isAppInstalled ? Color.red : (viewModel.isAppRunning ? Color.green : Color.orange))
                             .frame(width: 8, height: 8)
                         
-                        Text(viewModel.isAppRunning ? "Running (PID: \(viewModel.currentPID ?? 0))" : "Not Running")
+                        Text(!viewModel.isAppInstalled ? "Not Installed" : (viewModel.isAppRunning ? "Running (PID: \(viewModel.currentPID ?? 0))" : "Not Running"))
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(viewModel.isAppRunning ? .green : .orange)
+                            .foregroundColor(!viewModel.isAppInstalled ? .red : (viewModel.isAppRunning ? .green : .orange))
                     }
                 }
                 
@@ -250,6 +272,10 @@ struct TargetAppStatusCard: View {
                 
                 // ปุ่มเปิดแอป (Launch App)
                 Button(action: {
+                    guard viewModel.isAppInstalled else {
+                        viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
+                        return
+                    }
                     let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
                     if success {
                         viewModel.parentVC?.showSuccessNotification(message: "กำลังเปิด \(viewModel.targetApp.name)...")
@@ -257,7 +283,7 @@ struct TargetAppStatusCard: View {
                             viewModel.refreshTargetStatus()
                         }
                     } else {
-                        viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้ หรือไม่ได้ติดตั้งแอป")
+                        viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
                     }
                 }) {
                     Label("Launch App", systemImage: "play.fill")
@@ -523,10 +549,15 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            // 🟢 อัปเดตเช็กสถานะแอปก่อนทำการ Enable/Disable
+            // 🟢 อัปเดตเช็กสถานะแอปและการติดตั้งก่อนทำการ Enable/Disable
             viewModel.refreshTargetStatus()
             
-            // 🟢 ถ้าแอปเป้าหมายยังไม่ได้รันอยู่ ให้แจ้งเตือนและยกเลิกการทำงาน
+            // 🟢 เงื่อนไขตรวจสอบ: ถ้าไม่ได้ติดตั้งหรือไม่ได้รัน ให้แจ้งเตือนตามเงื่อนไขที่ต้องการ
+            guard viewModel.isAppInstalled else {
+                viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชัน")
+                return
+            }
+            
             guard viewModel.isAppRunning else {
                 viewModel.parentVC?.showErrorNotification(message: "ไม่ได้เปิดแอป หรือไม่ได้ติดตั้งแอป")
                 return

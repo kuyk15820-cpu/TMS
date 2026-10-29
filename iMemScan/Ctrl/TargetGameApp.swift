@@ -1,3 +1,10 @@
+//
+//  TargetGameApp.swift
+//  iMemScan
+//
+//  Created by Custom on 2026.
+//
+
 import SwiftUI
 import UIKit
 
@@ -49,10 +56,11 @@ struct TargetGameApp: Identifiable, Hashable, Decodable {
     // MARK: - Private Helpers
 
     private static func fetchAppName(for bundleID: String) -> String {
-        if let proxyClass = NSClassFromString(SecretKeys.classNameLSApplicationProxy) as? NSObject.Type,
-           let proxy = proxyClass.perform(Selector((SecretKeys.selectorAppProxyForIdentifier)), with: bundleID)?.takeUnretainedValue() as? NSObject {
+        // 🟢 ระบุค่าตรงๆ แทนการเรียกผ่าน SecretKeys
+        if let proxyClass = NSClassFromString("LSApplicationProxy") as? NSObject.Type,
+           let proxy = proxyClass.perform(Selector("applicationProxyForIdentifier:"), with: bundleID)?.takeUnretainedValue() as? NSObject {
             
-            if let localizedName = proxy.perform(Selector((SecretKeys.selectorLocalizedName)))?.takeUnretainedValue() as? String, !localizedName.isEmpty {
+            if let localizedName = proxy.perform(Selector("localizedName"))?.takeUnretainedValue() as? String, !localizedName.isEmpty {
                 return localizedName
             }
         }

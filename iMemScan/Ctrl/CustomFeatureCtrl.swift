@@ -173,7 +173,9 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
+        // 🟢 เปลี่ยนสีไอคอนเพิ่มฟีเจอร์เป็น System Pink
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
+        addBtn.tintColor = .systemPink
         navigationItem.rightBarButtonItems = [addBtn]
     }
 
@@ -293,7 +295,7 @@ struct TargetAppStatusCard: View {
                     .padding(.vertical, 10)
                     .background(Color.accentColor)
                     .foregroundColor(.white)
-                    .cornerRadius(8)
+                    .clipShape(Capsule()) // 🟢 ปรับปุ่มเปิดแอปเป็นทรงแคปซูล
             }
             .buttonStyle(NoHighlightButtonStyle())
             .transaction { transaction in
@@ -400,8 +402,7 @@ struct FeatureCardView: View {
                     title: "ค่าต้นฉบับ",
                     value: feature.originalValue,
                     placeholder: "แตะเพื่อกรอกค่าต้นฉบับ...",
-                    // 🟢 ตัด isLoading ออก เพื่อไม่ให้สีพื้นหลังเปลี่ยนตอนกำลังประมวลผล
-                    isDisabled: feature.isSaved || isAnyOtherLoading,
+                    isDisabled: feature.isSaved,
                     onTap: onEditOriginal
                 )
                 
@@ -409,8 +410,7 @@ struct FeatureCardView: View {
                     title: "ค่าที่ต้องการแก้ไข",
                     value: feature.modifiedValue,
                     placeholder: "แตะเพื่อกรอกค่าที่ต้องการแก้ไข...",
-                    // 🟢 ตัด isLoading ออก เช่นกัน
-                    isDisabled: feature.isSaved || isAnyOtherLoading,
+                    isDisabled: feature.isSaved,
                     onTap: onEditModified
                 )
             }
@@ -420,8 +420,9 @@ struct FeatureCardView: View {
                 onAction()
             }) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isLoading ? Color.accentColor : buttonBackgroundColor)
+                    // 🟢 เปลี่ยนสีตอนกำลังประมวลผลเป็นสี System Pink ทรงแคปซูล
+                    Capsule()
+                        .fill(isLoading ? Color(.systemPink) : buttonBackgroundColor)
                         .frame(height: 40)
                     
                     if isLoading {
@@ -463,7 +464,8 @@ struct FeatureCardView: View {
         if !feature.isSaved {
             return Color.orange
         } else {
-            return feature.isEnabled ? Color.red : Color.accentColor
+            // 🟢 เปลี่ยนสีตอนสถานะ "เปิดใช้งาน" เป็นสี System Pink
+            return feature.isEnabled ? Color.red : Color(.systemPink)
         }
     }
 }
@@ -558,7 +560,6 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            // 🟢 ตัดคำสั่ง refreshTargetStatus() ออกจากตรงนี้ เพื่อป้องกันสถานะแอปกระพริบชั่วขณะตอนกดปุ่ม
             guard viewModel.isAppInstalled else {
                 viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชัน")
                 return

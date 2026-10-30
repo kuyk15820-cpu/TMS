@@ -161,7 +161,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
-        let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
+        let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus")?.withTintColor(.white, renderingMode: .alwaysOriginal), style: .plain, target: self, action: #selector(didTapAddButton))
         navigationItem.rightBarButtonItems = [addBtn]
     }
 
@@ -214,7 +214,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ปรับปุ่มเป็น Tinted + Border สีน้ำเงิน และย้ายมา Bottom Action Bar)
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -260,6 +260,7 @@ struct TargetAppStatusCard: View {
             
             Divider()
             
+            // Bottom Action Bar สำหรับปุ่มเปิดแอป (Tinted + Border Color สีน้ำเงิน)
             Button(action: {
                 guard viewModel.isAppInstalled else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
@@ -275,15 +276,25 @@ struct TargetAppStatusCard: View {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
                 }
             }) {
-                Label("เปิดแอป", systemImage: "play")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(height: 40)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.blue, lineWidth: 1)
+                        )
+                    
+                    Label("เปิดแอป", systemImage: "play.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.blue)
+                }
             }
+            .opacity(1.0)
             .buttonStyle(PlainButtonStyle())
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+            }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -399,18 +410,22 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ใช้สีฟ้า (Color.accentColor) ตอนกำลังประมวลผล และบังคับ Opacity = 1.0 เสมอ ไม่ให้จางตอนกดค้าง
+            // 🟢 ปุ่มสไตล์ Tinted + Border Color (สีน้ำเงิน/ส้ม ตามสถานะ ไม่มีกิริยาเวลากด/ไม่จางตอน Disabled)
             Button(action: {
                 onAction()
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(isLoading ? Color.accentColor : buttonBackgroundColor)
+                        .fill(buttonThemeColor.opacity(0.15))
                         .frame(height: 40)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(buttonThemeColor, lineWidth: 1)
+                        )
                     
                     Text(isLoading ? "กำลังประมวลผล..." : buttonTitle)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(buttonThemeColor)
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
@@ -438,11 +453,14 @@ struct FeatureCardView: View {
         }
     }
     
-    var buttonBackgroundColor: Color {
+    var buttonThemeColor: Color {
+        if isLoading {
+            return Color.blue // 🟢 สีน้ำเงินตอนกำลังประมวลผล
+        }
         if !feature.isSaved {
             return Color.orange
         } else {
-            return feature.isEnabled ? Color.red : Color.accentColor
+            return feature.isEnabled ? Color.red : Color.blue // 🟢 เปลี่ยนจากสีฟ้าเป็นสีน้ำเงิน
         }
     }
 }
@@ -534,7 +552,7 @@ struct ScriptManagerView: View {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
-                saveToJson() // 🟢 บันทึกข้อมูลลง JSON ทันทีเมื่อกดปุ่มบันทึกสำเร็จ ป้องกันฟีเจอร์ตัวแรกหาย
+                saveToJson()
             }
         } else {
             viewModel.refreshTargetStatus()

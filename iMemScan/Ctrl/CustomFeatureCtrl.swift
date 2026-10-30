@@ -9,6 +9,17 @@ import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+// 🟢 Custom ButtonStyle สำหรับปิดเอฟเฟกต์ตอนกดและกดค้าง (ไม่ให้จางหรือมีไฮไลต์)
+struct NoHighlightButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> SwiftUI.ButtonStyle.Body {
+        configuration.label
+            .opacity(1.0)
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+            }
+    }
+}
+
 // Model สำหรับจัดการข้อมูลฟีเจอร์ (ไม่บันทึก isEnabled ลง JSON)
 struct ScriptFeature: Identifiable, Codable {
     var id = UUID()
@@ -283,7 +294,7 @@ struct TargetAppStatusCard: View {
                     .foregroundColor(.white)
                     .cornerRadius(8)
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(NoHighlightButtonStyle()) // 🟢 ปิดเอฟเฟกต์กดค้าง
         }
         .padding()
         .background(Color(.systemBackground))
@@ -399,7 +410,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ใช้สีฟ้า (Color.accentColor) ตอนกำลังประมวลผล และบังคับ Opacity = 1.0 เสมอ ไม่ให้จางตอนกดค้าง
+            // 🟢 ใช้ NoHighlightButtonStyle เพื่อป้องกันปุ่มจางหรือเปลี่ยนสีตอนกดค้าง
             Button(action: {
                 onAction()
             }) {
@@ -414,11 +425,7 @@ struct FeatureCardView: View {
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            .opacity(1.0)
-            .buttonStyle(PlainButtonStyle())
-            .transaction { transaction in
-                transaction.disablesAnimations = true
-            }
+            .buttonStyle(NoHighlightButtonStyle()) // 🟢 ใช้ Style ปิดไฮไลต์ตอนกด
         }
         .padding()
         .background(Color(.systemBackground))
@@ -534,7 +541,7 @@ struct ScriptManagerView: View {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
-                saveToJson() // 🟢 บันทึกข้อมูลลง JSON ทันทีเมื่อกดปุ่มบันทึกสำเร็จ ป้องกันฟีเจอร์ตัวแรกหาย
+                saveToJson() // 🟢 บันทึกข้อมูลลง JSON ทันทีเมื่อกดปุ่มบันทึกสำเร็จ
             }
         } else {
             viewModel.refreshTargetStatus()

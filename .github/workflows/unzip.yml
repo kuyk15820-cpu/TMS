@@ -94,7 +94,7 @@ jobs:
           puts "Successfully updated project build settings!"
           EOF
 
-      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติเฉพาะไฟล์ใหม่ (ไม่ดึงไฟล์เดิมมาแอดซ้ำซ้อน)
+      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติเฉพาะไฟล์ใหม่ พร้อมเพิ่ม Swift Package (ActivityIndicatorView)
       - name: sync swift files and packages to xcodeproj
         run: |
           gem install xcodeproj
@@ -118,6 +118,23 @@ jobs:
             unless paths.include?('$(SRCROOT)/**')
               config.build_settings['HEADER_SEARCH_PATHS'] = paths + ['$(SRCROOT)/**']
             end
+          end
+
+          # 🟢 สั่งเพิ่ม Swift Package (ActivityIndicatorView)
+          aiv_url = 'https://github.com/exyte/ActivityIndicatorView.git'
+          aiv_ref = project.root_object.package_references.find { |p| p.repositoryURL == aiv_url }
+          unless aiv_ref
+            aiv_ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+            aiv_ref.repositoryURL = aiv_url
+            aiv_ref.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => '2.0.2' }
+            project.root_object.package_references << aiv_ref
+            
+            aiv_product_dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+            aiv_product_dependency.product_name = 'ActivityIndicatorView'
+            aiv_product_dependency.package = aiv_ref
+            
+            target.package_product_dependencies << aiv_product_dependency
+            puts 'Added Swift Package: ActivityIndicatorView'
           end
           
           # ดึงรายชื่อไฟล์ที่มีอยู่ในโปรเจกต์และ Build Phases อยู่แล้วเพื่อข้ามการแอดซ้ำ
@@ -145,7 +162,7 @@ jobs:
           end
 
           project.save
-          puts "Successfully synced new source files!"
+          puts "Successfully synced new source files and packages!"
           EOF
 
       # 🟢 ตั้งค่า Symbol Stripping และ Compiler Optimization ป้องกัน Reverse Engineering

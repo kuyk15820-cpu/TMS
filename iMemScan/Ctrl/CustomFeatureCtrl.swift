@@ -11,7 +11,7 @@ import UniformTypeIdentifiers
 
 // 🟢 Custom ButtonStyle สำหรับปิดเอฟเฟกต์ตอนกดและกดค้าง (ไม่ให้จางหรือมีไฮไลต์)
 struct NoHighlightButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> SwiftUI.ButtonStyle.Body {
+    func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(1.0)
             .transaction { transaction in

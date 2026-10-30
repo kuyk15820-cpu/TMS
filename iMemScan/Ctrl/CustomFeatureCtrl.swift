@@ -9,7 +9,7 @@ import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// 🟢 Custom ButtonStyle สำหรับปิดเอฟเฟกต์ตอนกดและกดค้าง (ไม่ให้จางหรือมีไฮไลต์)
+// 🟢 Custom ButtonStyle สำหรับปิดเอฟเฟกต์ตอนกดและกดค้าง พร้อมทั้งปิดอนิเมชั่น
 struct NoHighlightButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -67,7 +67,7 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var processingFeatureID: UUID? = nil
     
     // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน
-    @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth1", active: true)
+    @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
     @Published var currentPID: Int32? = nil
     @Published var isAppRunning: Bool = false
     @Published var isAppInstalled: Bool = true
@@ -294,7 +294,10 @@ struct TargetAppStatusCard: View {
                     .foregroundColor(.white)
                     .cornerRadius(8)
             }
-            .buttonStyle(NoHighlightButtonStyle()) // 🟢 ปิดเอฟเฟกต์กดค้าง
+            .buttonStyle(NoHighlightButtonStyle())
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+            }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -410,7 +413,6 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ใช้ NoHighlightButtonStyle เพื่อป้องกันปุ่มจางหรือเปลี่ยนสีตอนกดค้าง
             Button(action: {
                 onAction()
             }) {
@@ -425,7 +427,10 @@ struct FeatureCardView: View {
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            .buttonStyle(NoHighlightButtonStyle()) // 🟢 ใช้ Style ปิดไฮไลต์ตอนกด
+            .buttonStyle(NoHighlightButtonStyle())
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+            }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -541,7 +546,7 @@ struct ScriptManagerView: View {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
-                saveToJson() // 🟢 บันทึกข้อมูลลง JSON ทันทีเมื่อกดปุ่มบันทึกสำเร็จ
+                saveToJson()
             }
         } else {
             viewModel.refreshTargetStatus()

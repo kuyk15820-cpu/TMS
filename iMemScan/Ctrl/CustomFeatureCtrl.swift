@@ -56,7 +56,7 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var processingFeatureID: UUID? = nil
     
     // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน
-    @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
+    @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth1", active: true)
     @Published var currentPID: Int32? = nil
     @Published var isAppRunning: Bool = false
     @Published var isAppInstalled: Bool = true

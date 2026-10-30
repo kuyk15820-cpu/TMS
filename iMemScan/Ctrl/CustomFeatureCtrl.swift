@@ -46,7 +46,6 @@ struct ScriptFeature: Identifiable, Codable {
         try container.encode(originalValue, forKey: .originalValue)
         try container.encode(modifiedValue, forKey: .modifiedValue)
         try container.encode(isSaved, forKey: .isSaved)
-        // ไม่ทำการ encode ค่า isEnabled เพื่อไม่ให้จำสถานะเปิด/ปิด
     }
 }
 
@@ -91,7 +90,7 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
-    // 🟢 ตรวจสอบสถานะ Process และ PID ให้ตรงเป๊ะ ป้องกันการจับโปรเซสผิดพลาด
+    // 🟢 ตรวจสอบสถานะ Process และ PID โดยใช้เงื่อนไขแบบเดียวกับ AppDelegate
     func refreshTargetStatus() {
         checkAppInstallation()
         
@@ -102,12 +101,12 @@ class ScriptManagerViewModel: ObservableObject {
         guard let sections = PidModel.refreshModelArray() as? [[PidModel]] else { return }
         
         let targetName = targetApp.name.lowercased()
-        let targetBundle = targetApp.bundleID.lowercased()
+        let alternateName = "FreeFire"
         
         for section in sections {
             for model in section {
                 let modelName = model.name.lowercased()
-                if modelName == targetName || modelName.contains(targetBundle) || (modelName.contains(targetName) && targetName.count > 3) {
+                if modelName.localizedCaseInsensitiveContains(targetName) || modelName.localizedCaseInsensitiveContains(alternateName) {
                     if let pidInt = Int32(model.pid), pidInt > 0 {
                         currentPID = pidInt
                         isAppRunning = true
@@ -535,7 +534,7 @@ struct ScriptManagerView: View {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
-                saveToJson() // 🟢 เพิ่มการเรียกบันทึกทันทีเมื่อกดปุ่ม Save สำเร็จ เพื่อให้อัปเดตข้อมูลทุกฟีเจอร์ลงไฟล์ JSON ทันที
+                saveToJson() // 🟢 บันทึกข้อมูลลง JSON ทันทีเมื่อกดปุ่มบันทึกสำเร็จ ป้องกันฟีเจอร์ตัวแรกหาย
             }
         } else {
             viewModel.refreshTargetStatus()
@@ -619,4 +618,3 @@ struct ScriptManagerView: View {
         viewModel.features = decoded
     }
 }
-

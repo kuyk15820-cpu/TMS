@@ -22,12 +22,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Override point for customization after application launch.
         
         Audio()
-        overrideUserInterfacrStyle()
+        overrideUserInterfaceStyle() // 🟢 บังคับใช้ Dark Mode เท่านั้น
         
         // 🟢 สั่งให้ค้นหาและเซ็ต PID อัตโนมัติทันทีที่แอปเปิด (โดยเช็คจากแอปที่กำลังรันอยู่)
         autoSetTargetProcess()
         
         return true
+    }
+    
+    // 🟢 ฟังก์ชันบังคับให้แอปพลิเคชันแสดงผลเฉพาะ Dark Mode ตลอดการทำงาน
+    func overrideUserInterfaceStyle() {
+        if #available(iOS 13.0, *) {
+            // วนลูปทุก window ของแอปเพื่อบังคับ override เป็น Dark
+            for scene in UIApplication.shared.connectedScenes {
+                if let windowScene = scene as? UIWindowScene {
+                    for window in windowScene.windows {
+                        window.overrideUserInterfaceStyle = .dark
+                    }
+                }
+            }
+            // เผื่อกรณี UIWindow เริ่มต้น
+            window?.overrideUserInterfaceStyle = .dark
+        }
     }
     
     // 🟢 ฟังก์ชันค้นหาและตั้งค่า PID อัตโนมัติ

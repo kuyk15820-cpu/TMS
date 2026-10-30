@@ -214,7 +214,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ปรับปุ่มเป็น Tinted + Border สีน้ำเงิน และย้ายมา Bottom Action Bar)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย พร้อม Bottom Bar สำหรับปุ่มเปิดแอป
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -260,7 +260,7 @@ struct TargetAppStatusCard: View {
             
             Divider()
             
-            // Bottom Action Bar สำหรับปุ่มเปิดแอป (Tinted + Border Color สีน้ำเงิน)
+            // Bottom Action Bar สำหรับปุ่มเปิดแอป
             Button(action: {
                 guard viewModel.isAppInstalled else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
@@ -278,16 +278,16 @@ struct TargetAppStatusCard: View {
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.blue.opacity(0.15))
+                        .fill(Color.white.opacity(0.05))
                         .frame(height: 40)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.blue, lineWidth: 1)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
                         )
                     
                     Label("เปิดแอป", systemImage: "play.fill")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.blue)
+                        .foregroundColor(.primary)
                 }
             }
             .opacity(1.0)
@@ -410,26 +410,26 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปุ่มสไตล์ Tinted + Border Color (สีน้ำเงิน/ส้ม ตามสถานะ ไม่มีกิริยาเวลากด/ไม่จางตอน Disabled)
+            // 🟢 ปุ่มสไตล์ Border Color สีขาวจางๆ (ความหนาเส้นพอดี, ความสว่าง 1.0 ตลอดเวลา)
             Button(action: {
                 onAction()
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(buttonThemeColor.opacity(0.15))
-                        .frame(height: 40)
+                        .fill(Color.white.opacity(0.05))
+                        .frame(height: 48) // ความสูงเท่ากับ OutlinedValueView เพื่อความสมส่วน
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(buttonThemeColor, lineWidth: 1)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1) // เส้นขอบบางกำลังดี สีขาวจางๆ
                         )
                     
-                    Text(isLoading ? "กำลังประมวลผล..." : buttonTitle)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(buttonThemeColor)
+                    Text(buttonTitle)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            .opacity(1.0)
+            .opacity(1.0) // บังคับความทึบเป็น 1.0 เสมอ ไม่ให้จางตอนกดหรือตอน Disabled
             .buttonStyle(PlainButtonStyle())
             .transaction { transaction in
                 transaction.disablesAnimations = true
@@ -446,21 +446,17 @@ struct FeatureCardView: View {
     }
     
     var buttonTitle: String {
+        if isLoading {
+            return "กำลังประมวลผล..."
+        }
         if !feature.isSaved {
-            return "บันทึก"
+            if feature.originalValue.count < 9 || feature.modifiedValue.count < 9 {
+                return "ข้อมูลไม่ครบถ้วน" // 🟢 แสดงคำนี้เมื่อยังกรอกไม่ครบ 9 หลัก
+            } else {
+                return "บันทึก"
+            }
         } else {
             return feature.isEnabled ? "ปิดใช้งาน" : "เปิดใช้งาน"
-        }
-    }
-    
-    var buttonThemeColor: Color {
-        if isLoading {
-            return Color.blue // 🟢 สีน้ำเงินตอนกำลังประมวลผล
-        }
-        if !feature.isSaved {
-            return Color.orange
-        } else {
-            return feature.isEnabled ? Color.red : Color.blue // 🟢 เปลี่ยนจากสีฟ้าเป็นสีน้ำเงิน
         }
     }
 }

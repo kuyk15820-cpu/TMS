@@ -214,7 +214,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ลบปุ่มเปิดแอปออกจาก Card แล้ว)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ตัดปุ่มเปิดแอปออกจาก Card นี้แล้ว)
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -328,10 +328,6 @@ struct FeatureCardView: View {
         viewModel.processingFeatureID != nil && viewModel.processingFeatureID != feature.id
     }
     
-    var isInputIncomplete: Bool {
-        !feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -374,7 +370,7 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปรับปุ่มให้ใช้ Border Color สีขาวจางๆ ปกติ และบังคับ Opacity เป็น 1.0 เสมอ
+            // 🟢 ปรับปุ่มเป็น Border Color ปกติ (ความหนาเส้น 1) สีตามสถานะ และความสว่าง 1.0 ตลอด
             Button(action: {
                 onAction()
             }) {
@@ -384,16 +380,16 @@ struct FeatureCardView: View {
                         .frame(height: 40)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                                .stroke(buttonThemeColor, lineWidth: 1)
                         )
                     
                     Text(isLoading ? "กำลังประมวลผล..." : buttonTitle)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(buttonTextColor)
+                        .foregroundColor(buttonThemeColor)
                 }
             }
-            .disabled(isLoading || isAnyOtherLoading || isInputIncomplete)
-            .opacity(1.0) // 🟢 ล็อกความสว่างไว้ที่ 1.0 ตลอดเวลา ไม่จางตอน Disable หรือกดค้าง
+            .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
+            .opacity(1.0)
             .buttonStyle(PlainButtonStyle())
             .transaction { transaction in
                 transaction.disablesAnimations = true
@@ -411,7 +407,7 @@ struct FeatureCardView: View {
     
     var buttonTitle: String {
         if !feature.isSaved {
-            if isInputIncomplete {
+            if feature.originalValue.count < 9 || feature.modifiedValue.count < 9 {
                 return "ข้อมูลไม่ครบถ้วน"
             }
             return "บันทึก"
@@ -420,14 +416,17 @@ struct FeatureCardView: View {
         }
     }
     
-    var buttonTextColor: Color {
+    var buttonThemeColor: Color {
         if isLoading {
             return Color.blue
         }
         if !feature.isSaved {
-            return isInputIncomplete ? Color.secondary : Color.primary
+            if feature.originalValue.count < 9 || feature.modifiedValue.count < 9 {
+                return Color.secondary // สีเทาเมื่อข้อมูลยังไม่ครบ 9 หลัก
+            }
+            return Color.orange
         } else {
-            return feature.isEnabled ? Color.red : Color.primary
+            return feature.isEnabled ? Color.red : Color.blue
         }
     }
 }
@@ -490,9 +489,32 @@ struct ScriptManagerView: View {
                     loadFromJson()
                     viewModel.refreshTargetStatus()
                 }
+                .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
+                    TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
+                    Button("เพิ่ม") {
+                        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmedName.isEmpty {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                viewModel.showingAddAlert = true
+                            }
+                        } else {
+                            let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
+                            viewModel.features.append(newFeature)
+                            saveToJson()
+                            newName = ""
+                            viewModel.scrollToBottom()
+                        }
+                    }
+                    
+                    Button("ยกเลิก", role: .cancel) {
+                        newName = ""
+                    }
+                } message: {
+                    Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
+                }
             }
             
-            // 🟢 Bottom Action Bar ด้านล่างสุด (ย้ายปุ่มเปิดแอปมาไว้ที่นี่ พร้อมขอบสีน้ำเงินจางๆ และ Opacity 1.0)
+            // 🟢 Bottom Action Bar ด้านล่างสุด สำหรับปุ่มเปิดแอป (Border Color สีน้ำเงิน ความหนาเส้น 1, ความสว่าง 1.0)
             VStack(spacing: 0) {
                 Divider()
                 Button(action: {
@@ -512,47 +534,27 @@ struct ScriptManagerView: View {
                 }) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.blue.opacity(0.1))
+                            .fill(Color.clear)
                             .frame(height: 44)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.blue.opacity(0.5), lineWidth: 1)
+                                    .stroke(Color.blue, lineWidth: 1)
                             )
                         
                         Label("เปิดแอป", systemImage: "play.fill")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.blue)
                     }
                 }
                 .opacity(1.0)
                 .buttonStyle(PlainButtonStyle())
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color(.systemBackground))
-            }
-        }
-        .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
-            TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
-            Button("เพิ่ม") {
-                let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmedName.isEmpty {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        viewModel.showingAddAlert = true
-                    }
-                } else {
-                    let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
-                    viewModel.features.append(newFeature)
-                    saveToJson()
-                    newName = ""
-                    viewModel.scrollToBottom()
+                .transaction { transaction in
+                    transaction.disablesAnimations = true
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
-            
-            Button("ยกเลิก", role: .cancel) {
-                newName = ""
-            }
-        } message: {
-            Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
+            .background(Color(.systemBackground))
         }
     }
     

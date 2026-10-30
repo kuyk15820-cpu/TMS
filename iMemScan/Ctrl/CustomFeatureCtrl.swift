@@ -161,7 +161,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
-        let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus")?.withTintColor(.white, renderingMode: .alwaysOriginal), style: .plain, target: self, action: #selector(didTapAddButton))
+        let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
         navigationItem.rightBarButtonItems = [addBtn]
     }
 
@@ -214,47 +214,76 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ตัดปุ่มเปิดแอปออกจาก Card นี้แล้ว)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
     var body: some View {
-        HStack(spacing: 12) {
-            if let icon = viewModel.targetApp.icon {
-                Image(uiImage: icon)
-                    .resizable()
-                    .frame(width: 50, height: 50)
-                    .cornerRadius(10)
-            } else {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.secondary.opacity(0.3))
-                    .frame(width: 50, height: 50)
-                    .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(viewModel.targetApp.name)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                
-                Text(viewModel.targetApp.bundleID)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(!viewModel.isAppInstalled ? Color.red : (viewModel.isAppRunning ? Color.green : Color.orange))
-                        .frame(width: 8, height: 8)
-                    
-                    Text(!viewModel.isAppInstalled ? "Not Installed" : (viewModel.isAppRunning ? "Running (PID: \(viewModel.currentPID ?? 0))" : "Not Running"))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(!viewModel.isAppInstalled ? .red : (viewModel.isAppRunning ? .green : .orange))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                if let icon = viewModel.targetApp.icon {
+                    Image(uiImage: icon)
+                        .resizable()
+                        .frame(width: 50, height: 50)
+                        .cornerRadius(10)
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.secondary.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                        .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
                 }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.targetApp.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Text(viewModel.targetApp.bundleID)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(!viewModel.isAppInstalled ? Color.red : (viewModel.isAppRunning ? Color.green : Color.orange))
+                            .frame(width: 8, height: 8)
+                        
+                        Text(!viewModel.isAppInstalled ? "Not Installed" : (viewModel.isAppRunning ? "Running (PID: \(viewModel.currentPID ?? 0))" : "Not Running"))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(!viewModel.isAppInstalled ? .red : (viewModel.isAppRunning ? .green : .orange))
+                    }
+                }
+                
+                Spacer()
             }
             
-            Spacer()
+            Divider()
+            
+            Button(action: {
+                guard viewModel.isAppInstalled else {
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
+                    return
+                }
+                let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
+                if success {
+                    viewModel.parentVC?.showSuccessNotification(message: "กำลังเปิด \(viewModel.targetApp.name)...")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        viewModel.refreshTargetStatus()
+                    }
+                } else {
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
+                }
+            }) {
+                Label("เปิดแอป", systemImage: "play")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding()
         .background(Color(.systemBackground))
@@ -370,22 +399,18 @@ struct FeatureCardView: View {
             }
             .padding(.horizontal, 4)
             
-            // 🟢 ปรับปุ่มเป็น Border Color ปกติ (ความหนาเส้น 1) สีตามสถานะ และความสว่าง 1.0 ตลอด
+            // 🟢 ใช้สีฟ้า (Color.accentColor) ตอนกำลังประมวลผล และบังคับ Opacity = 1.0 เสมอ ไม่ให้จางตอนกดค้าง
             Button(action: {
                 onAction()
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.clear)
+                        .fill(isLoading ? Color.accentColor : buttonBackgroundColor)
                         .frame(height: 40)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(buttonThemeColor, lineWidth: 1)
-                        )
                     
                     Text(isLoading ? "กำลังประมวลผล..." : buttonTitle)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(buttonThemeColor)
+                        .foregroundColor(.white)
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
@@ -407,26 +432,17 @@ struct FeatureCardView: View {
     
     var buttonTitle: String {
         if !feature.isSaved {
-            if feature.originalValue.count < 9 || feature.modifiedValue.count < 9 {
-                return "ข้อมูลไม่ครบถ้วน"
-            }
             return "บันทึก"
         } else {
             return feature.isEnabled ? "ปิดใช้งาน" : "เปิดใช้งาน"
         }
     }
     
-    var buttonThemeColor: Color {
-        if isLoading {
-            return Color.blue
-        }
+    var buttonBackgroundColor: Color {
         if !feature.isSaved {
-            if feature.originalValue.count < 9 || feature.modifiedValue.count < 9 {
-                return Color.secondary // สีเทาเมื่อข้อมูลยังไม่ครบ 9 หลัก
-            }
             return Color.orange
         } else {
-            return feature.isEnabled ? Color.red : Color.blue
+            return feature.isEnabled ? Color.red : Color.accentColor
         }
     }
 }
@@ -436,125 +452,81 @@ struct ScriptManagerView: View {
     @State private var newName = ""
     
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: 16) {
-                        TargetAppStatusCard(viewModel: viewModel)
-                            .padding(.top, 8)
-                        
-                        LazyVStack(spacing: 16) {
-                            ForEach($viewModel.features) { $feature in
-                                FeatureCardView(
-                                    feature: $feature,
-                                    viewModel: viewModel,
-                                    onDelete: {
-                                        if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
-                                            viewModel.features.remove(at: index)
-                                            saveToJson()
-                                        }
-                                    },
-                                    onAction: {
-                                        handleButtonAction(for: &feature)
-                                    },
-                                    onEditOriginal: {
-                                        viewModel.parentVC?.showValueInputAlert(
-                                            title: "ค่าต้นฉบับ",
-                                            message: "กรอกค่าต้นฉบับ อย่างน้อย 9 หลัก",
-                                            initialValue: feature.originalValue
-                                        ) { newValue in
-                                            feature.originalValue = newValue
-                                            saveToJson()
-                                        }
-                                    },
-                                    onEditModified: {
-                                        viewModel.parentVC?.showValueInputAlert(
-                                            title: "ค่าที่ต้องการแก้ไข",
-                                            message: "กรอกค่าที่ต้องการแก้ไข อย่างน้อย 9 หลัก",
-                                            initialValue: feature.modifiedValue
-                                        ) { newValue in
-                                            feature.modifiedValue = newValue
-                                            saveToJson()
-                                        }
-                                    }
-                                )
-                                .id(feature.id)
-                            }
-                        }
-                    }
-                    .padding(.vertical)
-                }
-                .onAppear {
-                    viewModel.scrollToProxy = proxy
-                    loadFromJson()
-                    viewModel.refreshTargetStatus()
-                }
-                .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
-                    TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
-                    Button("เพิ่ม") {
-                        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmedName.isEmpty {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                viewModel.showingAddAlert = true
-                            }
-                        } else {
-                            let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
-                            viewModel.features.append(newFeature)
-                            saveToJson()
-                            newName = ""
-                            viewModel.scrollToBottom()
-                        }
-                    }
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 16) {
+                    TargetAppStatusCard(viewModel: viewModel)
+                        .padding(.top, 8)
                     
-                    Button("ยกเลิก", role: .cancel) {
-                        newName = ""
+                    LazyVStack(spacing: 16) {
+                        ForEach($viewModel.features) { $feature in
+                            FeatureCardView(
+                                feature: $feature,
+                                viewModel: viewModel,
+                                onDelete: {
+                                    if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
+                                        viewModel.features.remove(at: index)
+                                        saveToJson()
+                                    }
+                                },
+                                onAction: {
+                                    handleButtonAction(for: &feature)
+                                },
+                                onEditOriginal: {
+                                    viewModel.parentVC?.showValueInputAlert(
+                                        title: "ค่าต้นฉบับ",
+                                        message: "กรอกค่าต้นฉบับ อย่างน้อย 9 หลัก",
+                                        initialValue: feature.originalValue
+                                    ) { newValue in
+                                        feature.originalValue = newValue
+                                        saveToJson()
+                                    }
+                                },
+                                onEditModified: {
+                                    viewModel.parentVC?.showValueInputAlert(
+                                        title: "ค่าที่ต้องการแก้ไข",
+                                        message: "กรอกค่าที่ต้องการแก้ไข อย่างน้อย 9 หลัก",
+                                        initialValue: feature.modifiedValue
+                                    ) { newValue in
+                                        feature.modifiedValue = newValue
+                                        saveToJson()
+                                    }
+                                }
+                            )
+                            .id(feature.id)
+                        }
                     }
-                } message: {
-                    Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
                 }
+                .padding(.vertical)
             }
-            
-            // 🟢 Bottom Action Bar ด้านล่างสุด สำหรับปุ่มเปิดแอป (Border Color สีน้ำเงิน ความหนาเส้น 1, ความสว่าง 1.0)
-            VStack(spacing: 0) {
-                Divider()
-                Button(action: {
-                    guard viewModel.isAppInstalled else {
-                        viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
-                        return
-                    }
-                    let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
-                    if success {
-                        viewModel.parentVC?.showSuccessNotification(message: "กำลังเปิด \(viewModel.targetApp.name)...")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            viewModel.refreshTargetStatus()
+            .onAppear {
+                viewModel.scrollToProxy = proxy
+                loadFromJson()
+                viewModel.refreshTargetStatus()
+            }
+            .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
+                TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
+                Button("เพิ่ม") {
+                    let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedName.isEmpty {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            viewModel.showingAddAlert = true
                         }
                     } else {
-                        viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
-                    }
-                }) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.clear)
-                            .frame(height: 44)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.blue, lineWidth: 1)
-                            )
-                        
-                        Label("เปิดแอป", systemImage: "play.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.blue)
+                        let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
+                        viewModel.features.append(newFeature)
+                        saveToJson()
+                        newName = ""
+                        viewModel.scrollToBottom()
                     }
                 }
-                .opacity(1.0)
-                .buttonStyle(PlainButtonStyle())
-                .transaction { transaction in
-                    transaction.disablesAnimations = true
+                
+                Button("ยกเลิก", role: .cancel) {
+                    newName = ""
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+            } message: {
+                Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
             }
-            .background(Color(.systemBackground))
         }
     }
     
@@ -562,7 +534,7 @@ struct ScriptManagerView: View {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
-                saveToJson()
+                saveToJson() // 🟢 บันทึกข้อมูลลง JSON ทันทีเมื่อกดปุ่มบันทึกสำเร็จ ป้องกันฟีเจอร์ตัวแรกหาย
             }
         } else {
             viewModel.refreshTargetStatus()

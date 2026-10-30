@@ -8,6 +8,7 @@
 import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
+import ActivityIndicatorView
 
 // 🟢 Custom ButtonStyle สำหรับปิดเอฟเฟกต์ตอนกดและกดค้าง พร้อมทั้งปิดอนิเมชั่น
 struct NoHighlightButtonStyle: ButtonStyle {
@@ -421,9 +422,15 @@ struct FeatureCardView: View {
                         .fill(isLoading ? Color.accentColor : buttonBackgroundColor)
                         .frame(height: 40)
                     
-                    Text(isLoading ? "กำลังประมวลผล..." : buttonTitle)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
+                    if isLoading {
+                        ActivityIndicatorView(type: .equalizer())
+                            .frame(width: 22, height: 22)
+                            .foregroundColor(.white)
+                    } else {
+                        Text(buttonTitle)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                    }
                 }
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
@@ -626,7 +633,7 @@ struct ScriptManagerView: View {
     func loadFromJson() {
         let url = getJSONFileURL()
         guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode([ScriptFeature].self, from: data) else { return }
+              let decoded = try? JSONDecoder([ScriptFeature].self, from: data) else { return }
         viewModel.features = decoded
     }
 }

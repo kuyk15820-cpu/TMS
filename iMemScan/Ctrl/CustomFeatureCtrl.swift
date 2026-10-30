@@ -630,10 +630,10 @@ struct ScriptManagerView: View {
         }
     }
     
-    func loadFromJson() {
+        func loadFromJson() {
         let url = getJSONFileURL()
         guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder([ScriptFeature].self, from: data) else { return }
+              let decoded = try? JSONDecoder().decode([ScriptFeature].self, from: data) else { return }
         viewModel.features = decoded
     }
 }

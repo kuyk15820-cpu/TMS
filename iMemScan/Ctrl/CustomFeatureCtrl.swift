@@ -400,7 +400,8 @@ struct FeatureCardView: View {
                     title: "ค่าต้นฉบับ",
                     value: feature.originalValue,
                     placeholder: "แตะเพื่อกรอกค่าต้นฉบับ...",
-                    isDisabled: feature.isSaved || isLoading || isAnyOtherLoading,
+                    // 🟢 ตัด isLoading ออก เพื่อไม่ให้สีพื้นหลังเปลี่ยนตอนกำลังประมวลผล
+                    isDisabled: feature.isSaved || isAnyOtherLoading,
                     onTap: onEditOriginal
                 )
                 
@@ -408,7 +409,8 @@ struct FeatureCardView: View {
                     title: "ค่าที่ต้องการแก้ไข",
                     value: feature.modifiedValue,
                     placeholder: "แตะเพื่อกรอกค่าที่ต้องการแก้ไข...",
-                    isDisabled: feature.isSaved || isLoading || isAnyOtherLoading,
+                    // 🟢 ตัด isLoading ออก เช่นกัน
+                    isDisabled: feature.isSaved || isAnyOtherLoading,
                     onTap: onEditModified
                 )
             }
@@ -556,8 +558,7 @@ struct ScriptManagerView: View {
                 saveToJson()
             }
         } else {
-            viewModel.refreshTargetStatus()
-            
+            // 🟢 ตัดคำสั่ง refreshTargetStatus() ออกจากตรงนี้ เพื่อป้องกันสถานะแอปกระพริบชั่วขณะตอนกดปุ่ม
             guard viewModel.isAppInstalled else {
                 viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชัน")
                 return
@@ -630,7 +631,7 @@ struct ScriptManagerView: View {
         }
     }
     
-        func loadFromJson() {
+    func loadFromJson() {
         let url = getJSONFileURL()
         guard let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode([ScriptFeature].self, from: data) else { return }

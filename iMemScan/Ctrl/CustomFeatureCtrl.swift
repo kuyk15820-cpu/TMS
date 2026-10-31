@@ -173,9 +173,9 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
-        // 🟢 เปลี่ยนสีไอคอนเพิ่มฟีเจอร์เป็น System Pink
+        // 🟢 เปลี่ยนสีไอคอนเพิ่มฟีเจอร์กลับมาเป็นสีขาว (ค่าเริ่มต้น)
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
-        addBtn.tintColor = .systemPink
+        addBtn.tintColor = .white
         navigationItem.rightBarButtonItems = [addBtn]
     }
 
@@ -289,13 +289,19 @@ struct TargetAppStatusCard: View {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
                 }
             }) {
-                Label("เปิดแอป", systemImage: "play")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor)
-                    .foregroundColor(.white)
-                    .clipShape(Capsule()) // 🟢 ปรับปุ่มเปิดแอปเป็นทรงแคปซูล
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.clear)
+                        .frame(height: 40)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
+                        )
+                    
+                    Label("เปิดแอป", systemImage: "play")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
             }
             .buttonStyle(NoHighlightButtonStyle())
             .transaction { transaction in
@@ -420,19 +426,23 @@ struct FeatureCardView: View {
                 onAction()
             }) {
                 ZStack {
-                    // 🟢 เปลี่ยนสีตอนกำลังประมวลผลเป็นสี System Pink ทรงแคปซูล
-                    Capsule()
-                        .fill(isLoading ? Color(.systemPink) : buttonBackgroundColor)
+                    // 🟢 ใช้รูปทรง RoundedRectangle โค้งมน 8 พิกเซล พื้นหลัง Clear พร้อมขอบ Border
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.clear)
                         .frame(height: 40)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(buttonBorderColor, lineWidth: 1)
+                        )
                     
                     if isLoading {
                         ActivityIndicatorView(type: .equalizer())
                             .frame(width: 22, height: 22)
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                     } else {
                         Text(buttonTitle)
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                     }
                 }
             }
@@ -460,12 +470,13 @@ struct FeatureCardView: View {
         }
     }
     
-    var buttonBackgroundColor: Color {
-        if !feature.isSaved {
-            return Color.orange
+    var buttonBorderColor: Color {
+        if isLoading {
+            return Color.secondary.opacity(0.5)
+        } else if !feature.isSaved {
+            return Color.secondary.opacity(0.5)
         } else {
-            // 🟢 เปลี่ยนสีตอนสถานะ "เปิดใช้งาน" เป็นสี System Pink
-            return feature.isEnabled ? Color.red : Color(.systemPink)
+            return feature.isEnabled ? Color.red : Color.secondary.opacity(0.5)
         }
     }
 }

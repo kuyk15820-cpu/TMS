@@ -301,7 +301,7 @@ struct TargetAppStatusCard: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.primary)
                 }
-                .contentShape(Rectangle()) // 🟢 รองรับการกดทั่วทั้งปุ่ม
+                .contentShape(Rectangle())
             }
             .buttonStyle(NoHighlightButtonStyle())
             .transaction { transaction in
@@ -372,6 +372,11 @@ struct FeatureCardView: View {
     var onEditOriginal: () -> Void
     var onEditModified: () -> Void
     
+    // 🟢 ตรวจสอบว่าเป็นฟีเจอร์ระบบเริ่มต้นหรือไม่ ("ปักธงโจรสลัด")
+    var isSystemFeature: Bool {
+        feature.name == "ปักธงโจรสลัด"
+    }
+    
     var isLoading: Bool {
         viewModel.processingFeatureID == feature.id
     }
@@ -381,90 +386,112 @@ struct FeatureCardView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(feature.name)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Menu {
-                    Button(role: .destructive, action: {
-                        onDelete()
-                    }) {
-                        Label("ลบฟีเจอร์นี้", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .padding(6)
-                }
-            }
-            
-            VStack(spacing: 14) {
-                OutlinedValueView(
-                    title: "ค่าต้นฉบับ",
-                    value: feature.originalValue,
-                    placeholder: "แตะเพื่อกรอกค่าต้นฉบับ...",
-                    isDisabled: feature.isSaved,
-                    onTap: onEditOriginal
-                )
-                
-                OutlinedValueView(
-                    title: "ค่าที่ต้องการแก้ไข",
-                    value: feature.modifiedValue,
-                    placeholder: "แตะเพื่อกรอกค่าที่ต้องการแก้ไข...",
-                    isDisabled: feature.isSaved,
-                    onTap: onEditModified
-                )
-            }
-            .padding(.horizontal, 4)
-            
-            Button(action: {
-                onAction()
-            }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.clear)
-                        .frame(height: 40)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(buttonBorderColor, lineWidth: 1)
-                        )
+        ZStack(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text(feature.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
                     
-                    if isLoading {
-                        ActivityIndicatorView(type: .equalizer())
-                            .frame(width: 22, height: 22)
-                            .foregroundColor(.primary)
+                    Spacer()
+                    
+                    // 🟢 ถ้าเป็นฟีเจอร์ระบบแสดงคำว่า "ล็อคอยู่" ถ้าไม่ใช่แสดงปุ่มสามจุดปกติ
+                    if isSystemFeature {
+                        Text("ล็อคอยู่")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
                     } else {
-                        Text(buttonTitle)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.primary)
+                        Menu {
+                            Button(role: .destructive, action: {
+                                onDelete()
+                            }) {
+                                Label("ลบฟีเจอร์นี้", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .padding(6)
+                        }
                     }
                 }
-                .contentShape(Rectangle()) // 🟢 รองรับการกดทั่วทั้งปุ่ม
+                
+                VStack(spacing: 14) {
+                    OutlinedValueView(
+                        title: "ค่าต้นฉบับ",
+                        value: feature.originalValue,
+                        placeholder: "แตะเพื่อกรอกค่าต้นฉบับ...",
+                        isDisabled: feature.isSaved,
+                        onTap: onEditOriginal
+                    )
+                    
+                    OutlinedValueView(
+                        title: "ค่าที่ต้องการแก้ไข",
+                        value: feature.modifiedValue,
+                        placeholder: "แตะเพื่อกรอกค่าที่ต้องการแก้ไข...",
+                        isDisabled: feature.isSaved,
+                        onTap: onEditModified
+                    )
+                }
+                .padding(.horizontal, 4)
+                
+                Button(action: {
+                    onAction()
+                }) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.clear)
+                            .frame(height: 40)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(buttonBorderColor, lineWidth: 1)
+                            )
+                        
+                        if isLoading {
+                            ActivityIndicatorView(type: .equalizer())
+                                .frame(width: 22, height: 22)
+                                .foregroundColor(.primary)
+                        } else {
+                            Text(buttonTitle)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
+                .buttonStyle(NoHighlightButtonStyle())
+                .transaction { transaction in
+                    transaction.disablesAnimations = true
+                }
             }
-            .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
-            .buttonStyle(NoHighlightButtonStyle())
-            .transaction { transaction in
-                transaction.disablesAnimations = true
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            )
+            .padding(.horizontal)
+            
+            // 🟢 เพิ่ม Outlined Overlay Badge ทรงแคปซูลพื้นหลังสีน้ำเงินเฉพาะฟีเจอร์ระบบ
+            if isSystemFeature {
+                Text("PRIMARY")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+                    .offset(x: 28, y: -8)
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-        )
-        .padding(.horizontal)
     }
     
     var buttonTitle: String {
         if !feature.isSaved {
-            // 🟢 หากยังกรอกค่าไม่ครบ 9 หลัก ให้แสดงคำว่า "ข้อมูลไม่ครบถ้วน"
             if feature.originalValue.count < 9 || feature.modifiedValue.count < 9 {
                 return "ข้อมูลไม่ครบถ้วน"
             }
@@ -511,6 +538,8 @@ struct ScriptManagerView: View {
                                     handleButtonAction(for: &feature)
                                 },
                                 onEditOriginal: {
+                                    // 🟢 ถ้าเป็นฟีเจอร์ระบบ ห้ามแก้ไขค่า
+                                    guard feature.name != "ปักธงโจรสลัด" else { return }
                                     viewModel.parentVC?.showValueInputAlert(
                                         title: "ค่าต้นฉบับ",
                                         message: "กรอกค่าต้นฉบับ อย่างน้อย 9 หลัก",
@@ -521,6 +550,8 @@ struct ScriptManagerView: View {
                                     }
                                 },
                                 onEditModified: {
+                                    // 🟢 ถ้าเป็นฟีเจอร์ระบบ ห้ามแก้ไขค่า
+                                    guard feature.name != "ปักธงโจรสลัด" else { return }
                                     viewModel.parentVC?.showValueInputAlert(
                                         title: "ค่าที่ต้องการแก้ไข",
                                         message: "กรอกค่าที่ต้องการแก้ไข อย่างน้อย 9 หลัก",
@@ -540,6 +571,20 @@ struct ScriptManagerView: View {
             .onAppear {
                 viewModel.scrollToProxy = proxy
                 loadFromJson()
+                
+                // 🟢 เพิ่มฟีเจอร์ตั้งต้นของระบบอัตโนมัติหากยังไม่มีในรายการ
+                if !viewModel.features.contains(where: { $0.name == "ปักธงโจรสลัด" }) {
+                    let systemFeature = ScriptFeature(
+                        name: "ปักธงโจรสลัด",
+                        originalValue: "909000128",
+                        modifiedValue: "909000034",
+                        isSaved: true,
+                        isEnabled: false
+                    )
+                    viewModel.features.insert(systemFeature, at: 0)
+                    saveToJson()
+                }
+                
                 viewModel.refreshTargetStatus()
             }
             .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
@@ -551,7 +596,6 @@ struct ScriptManagerView: View {
                             viewModel.showingAddAlert = true
                         }
                     } else {
-                        // 🟢 ตรวจสอบว่ามีชื่อฟีเจอร์นี้อยู่แล้วหรือไม่ (Case-insensitive)
                         let isDuplicate = viewModel.features.contains { $0.name.lowercased() == trimmedName.lowercased() }
                         if isDuplicate {
                             viewModel.parentVC?.showErrorNotification(message: "มีฟีเจอร์ชื่อ '\(trimmedName)' นี้อยู่แล้ว")

@@ -173,7 +173,6 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
-        // 🟢 เปลี่ยนสีไอคอนเพิ่มฟีเจอร์กลับมาเป็นสีขาว (ค่าเริ่มต้น)
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
         addBtn.tintColor = .white
         navigationItem.rightBarButtonItems = [addBtn]
@@ -302,6 +301,7 @@ struct TargetAppStatusCard: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.primary)
                 }
+                .contentShape(Rectangle()) // 🟢 รองรับการกดทั่วทั้งปุ่ม
             }
             .buttonStyle(NoHighlightButtonStyle())
             .transaction { transaction in
@@ -426,7 +426,6 @@ struct FeatureCardView: View {
                 onAction()
             }) {
                 ZStack {
-                    // 🟢 ใช้รูปทรง RoundedRectangle โค้งมน 8 พิกเซล พื้นหลัง Clear พร้อมขอบ Border
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.clear)
                         .frame(height: 40)
@@ -445,6 +444,7 @@ struct FeatureCardView: View {
                             .foregroundColor(.primary)
                     }
                 }
+                .contentShape(Rectangle()) // 🟢 รองรับการกดทั่วทั้งปุ่ม
             }
             .disabled(isLoading || isAnyOtherLoading || (!feature.isSaved && (feature.originalValue.count < 9 || feature.modifiedValue.count < 9)))
             .buttonStyle(NoHighlightButtonStyle())
@@ -464,6 +464,10 @@ struct FeatureCardView: View {
     
     var buttonTitle: String {
         if !feature.isSaved {
+            // 🟢 หากยังกรอกค่าไม่ครบ 9 หลัก ให้แสดงคำว่า "ข้อมูลไม่ครบถ้วน"
+            if feature.originalValue.count < 9 || feature.modifiedValue.count < 9 {
+                return "ข้อมูลไม่ครบถ้วน"
+            }
             return "บันทึก"
         } else {
             return feature.isEnabled ? "ปิดใช้งาน" : "เปิดใช้งาน"
@@ -547,11 +551,17 @@ struct ScriptManagerView: View {
                             viewModel.showingAddAlert = true
                         }
                     } else {
-                        let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
-                        viewModel.features.append(newFeature)
-                        saveToJson()
-                        newName = ""
-                        viewModel.scrollToBottom()
+                        // 🟢 ตรวจสอบว่ามีชื่อฟีเจอร์นี้อยู่แล้วหรือไม่ (Case-insensitive)
+                        let isDuplicate = viewModel.features.contains { $0.name.lowercased() == trimmedName.lowercased() }
+                        if isDuplicate {
+                            viewModel.parentVC?.showErrorNotification(message: "มีฟีเจอร์ชื่อ '\(trimmedName)' นี้อยู่แล้ว")
+                        } else {
+                            let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
+                            viewModel.features.append(newFeature)
+                            saveToJson()
+                            newName = ""
+                            viewModel.scrollToBottom()
+                        }
                     }
                 }
                 

@@ -478,7 +478,7 @@ struct FeatureCardView: View {
             
             // 🟢 เพิ่ม Outlined Overlay Badge ทรงแคปซูลพื้นหลังสีน้ำเงินเฉพาะฟีเจอร์ระบบ
             if isSystemFeature {
-                Text("PRIMARY")
+                Text("หลัก")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)

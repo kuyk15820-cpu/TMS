@@ -208,7 +208,7 @@ class CustomFeatureCtrl: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        viewModel.refreshTargetStatus()
+        // เอา refreshTargetStatus ออกแล้ว เพื่อป้องกันอาการค้างเวลากดย้อนกลับ
     }
     
     deinit {
@@ -582,7 +582,7 @@ struct ScriptManagerView: View {
                 }
                 .onAppear {
                     viewModel.scrollToProxy = proxy
-                    viewModel.refreshTargetStatus()
+                    // เอาการรีเฟรชตอน onAppear ออก เพื่อไม่ให้รันซ้ำซ้อนตอนกดย้อนกลับ
                 }
                 .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
                     TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)

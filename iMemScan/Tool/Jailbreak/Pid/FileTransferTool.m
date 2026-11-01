@@ -121,4 +121,34 @@
     return YES;
 }
 
++ (BOOL)isLocalConfigExistInTargetApp:(NSString *)targetBundleID {
+    // 1. ค้นหา Data Container Path ของแอปเป้าหมายผ่าน LSApplicationWorkspace
+    NSString *targetDocumentsPath = nil;
+    
+    Class workspaceClass = NSClassFromString(@"LSApplicationWorkspace");
+    if (workspaceClass) {
+        id workspace = [workspaceClass performSelector:NSSelectorFromString(@"defaultWorkspace")];
+        NSArray *installedApps = [workspace performSelector:NSSelectorFromString(@"allInstalledApplications")];
+        
+        for (id app in installedApps) {
+            NSString *appBundleID = [app performSelector:NSSelectorFromString(@"applicationIdentifier")];
+            if ([appBundleID.lowercaseString isEqualToString:targetBundleID.lowercaseString]) {
+                NSURL *dataContainerURL = [app performSelector:NSSelectorFromString(@"dataContainerURL")];
+                if (dataContainerURL) {
+                    targetDocumentsPath = [[dataContainerURL path] stringByAppendingPathComponent:@"Documents"];
+                }
+                break;
+            }
+        }
+    }
+    
+    if (!targetDocumentsPath) {
+        return NO;
+    }
+    
+    // 2. ตรวจสอบการมีอยู่จริงของไฟล์ localConfig.json
+    NSString *filePath = [targetDocumentsPath stringByAppendingPathComponent:@"localConfig.json"];
+    return [[NSFileManager defaultManager] fileExistsAtPath:filePath];
+}
+
 @end

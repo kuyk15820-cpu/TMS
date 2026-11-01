@@ -54,13 +54,16 @@
     
     NSString *fullVersion = [NSString stringWithFormat:@"v%@ (%@)", version, buildTimeStr];
     
+    // กำหนด Bundle ID ของแอปที่ต้องการดึงไอคอนมาแสดงในส่วนเครดิต (เปลี่ยนเป็น Bundle ID ที่ต้องการได้เลย)
+    NSString *creditAppBundleID = @"ph.telegra.Telegraph"; // ตัวอย่างใช้ Telegram หรือเปลี่ยนเป็น Bundle ID เป้าหมาย
+    
     // ยุบข้อมูลของเซกชันแรกเหลือ Dictionary ชุดเดียวใน Array เพื่อให้วาดออกมาเพียงช่องเดียว
     _tableData = @{
-        @"ABOUT": @[
+        @"เกี่ยวกับ": @[
             @{@"title": appName, @"bundle": bundleID, @"version": fullVersion, @"build_time": buildTimeStr}
         ],
-        @"CREDITS": @[
-            @{@"title": @"F1X3R", @"subtitle_val": @"นักพัฒนาจากทีม TGS", @"icon": @"person.crop.circle"}
+        @"เครดิตร": @[
+            @{@"title": @"F1X3R", @"subtitle_val": @"นักพัฒนาจากทีม TGS", @"bundle": creditAppBundleID}
         ]
     };
     
@@ -103,35 +106,26 @@
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifier];
     
     if (!cell) {
-        if (indexPath.section == 0) {
-            // ใช้สไตล์ Subtitle เพื่อให้ชื่อแอปอยู่บน และ Bundle ID ตกลงมาอยู่ด้านล่างในช่องเดียวกัน
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellIdentifier];
-        } else {
-            // ปรับเป็น UITableViewCellStyleSubtitle เพื่อรองรับการย้ายค่าไปแสดงใน subtitle
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellIdentifier];
-        }
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellIdentifier];
     }
     
     // ตั้งค่าสไตล์พื้นหลังธีมมืด
     cell.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
     cell.accessoryType = UITableViewCellAccessoryNone;
-    cell.accessoryView = nil; // ล้างค่าเผื่อการ Reuse แถวอื่น
+    cell.accessoryView = nil; // ล้างค่า accessoryView ออกทั้งหมด
     
     if (indexPath.section == 0) {
         // 1. ชื่อแอป (แสดงผลซ้ายบนของช่อง)
         cell.textLabel.text = rowData[@"title"];
         cell.textLabel.textColor = [UIColor labelColor];
         
-        // 2. Version และแสดง Build Time ต่อท้ายในบรรทัดเดียวกัน (รวมเป็นบรรทัดที่สอง)
+        // 2. Version และแสดง Build Time ต่อท้ายในบรรทัดเดียวกัน
         NSString *detailText = [NSString stringWithFormat:@"%@", rowData[@"version"]];
         cell.detailTextLabel.text = detailText;
         cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
         
-        // 3. เวอร์ชั่นขวาสุด: ใช้ UILabel ฝังลงใน accessoryView โดยระบบจะตรึงไว้ขวาสุดให้ทันทีโดยไม่ต้องตั้งค่าพิกัดเอง
-        // เอาออกตามคำสั่ง ย้ายไปใส่ใน subtitle แทนแล้ว
-        
-        // 4. ซ้ายมือสุดแสดงไอค่อนแอปดั้งเดิมจากระบบผ่าน Private API ลับ
+        // 3. ซ้ายมือสุดแสดงไอคอนแอปดั้งเดิมจากระบบผ่าน Private API ลับ
         UIImage *appIcon = nil;
         NSString *currentBID = rowData[@"bundle"];
         if (currentBID && [UIImage respondsToSelector:@selector(_applicationIconImageForBundleIdentifier:format:scale:)]) {
@@ -149,7 +143,7 @@
         }
         
     } else {
-        // เซกชันมาตรฐานอื่นๆ (เกี่ยวกับเรา, ประวัติอัปเดต, ระบบ)
+        // เซกชันเครดิตร
         cell.textLabel.text = rowData[@"title"];
         cell.textLabel.textColor = [UIColor labelColor];
         
@@ -157,17 +151,18 @@
         cell.detailTextLabel.text = rowData[@"subtitle_val"];
         cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
         
-        // เคลียร์ imageView ฝั่งซ้ายไม่ให้แสดงผลในกลุ่ม "เกี่ยวกับเรา" เพื่อย้ายไปไว้ทางขวา
-        cell.imageView.image = nil;
+        // ดึงไอคอนผ่าน Private API สำหรับแสดงผลทางซ้าย (cell.imageView)
+        UIImage *creditIcon = nil;
+        NSString *creditBID = rowData[@"bundle"];
+        if (creditBID && [UIImage respondsToSelector:@selector(_applicationIconImageForBundleIdentifier:format:scale:)]) {
+            creditIcon = [UIImage _applicationIconImageForBundleIdentifier:creditBID format:0 scale:[UIScreen mainScreen].scale];
+        }
         
-        // สร้าง UIImageView และกำหนด Icon ไปไว้ที่ด้านขวา (ผ่าน accessoryView)แทน
-        if (rowData[@"icon"] && [rowData[@"icon"] length] > 0) {
-            UIImage *sideIcon = [UIImage systemImageNamed:rowData[@"icon"]];
-            if (sideIcon) {
-                UIImageView *iconImageView = [[UIImageView alloc] initWithImage:sideIcon];
-                iconImageView.tintColor = [UIColor labelColor];
-                cell.accessoryView = iconImageView;
-            }
+        if (creditIcon) {
+            cell.imageView.image = creditIcon;
+            cell.imageView.tintColor = nil; // ปิดสีทับเพื่อให้แสดงสีจริงของไอคอน
+        } else {
+            cell.imageView.image = nil;
         }
         
         // ตกแต่งปุ่มตามประเภทเงื่อนไข
@@ -189,8 +184,8 @@
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    // แถวแรกข้อมูลแอปให้ดึงความสูงพอดีตามเนื้อหาที่มีไอคอนใหญ่ ส่วนแถวอื่นใช้ความสูงมาตรฐานของระบบอัตโนมัติ
-    return (indexPath.section == 0) ? 65.0f : UITableViewAutomaticDimension;
+    // กำหนดความสูงของแถวให้พอดีกับขนาดไอคอนฝั่งซ้าย
+    return (indexPath.section == 0) ? 65.0f : 60.0f;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {

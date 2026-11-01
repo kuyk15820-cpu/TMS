@@ -29,7 +29,7 @@
     self.navigationController.navigationBar.tintColor = [UIColor whiteColor];
 
     // ตั้งค่า Title ให้เป็นอักษรตัวใหญ่ชิดซ้ายบน (Large Title)
-    self.title = @"Info";
+    self.title = @"การตั้งค่า";
     if (self.navigationController) {
         self.navigationController.navigationBar.prefersLargeTitles = YES;
         self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
@@ -38,8 +38,8 @@
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     
     _sectionTitles = @[
-        @"ABOUT", 
-        @"CREDITS"
+        @"เกี่ยวกับ", 
+        @"เครดิตร"
     ];
     
     NSDictionary *infoPlist = [[NSBundle mainBundle] infoDictionary];
@@ -60,7 +60,7 @@
             @{@"title": appName, @"bundle": bundleID, @"version": fullVersion, @"build_time": buildTimeStr}
         ],
         @"CREDITS": @[
-            @{@"title": @"F1X3R", @"subtitle_val": @"Developer from TGS Team", @"icon": @"person.crop.circle"}
+            @{@"title": @"F1X3R", @"subtitle_val": @"นักพัฒนาจากทีม TGS", @"icon": @"person.crop.circle"}
         ]
     };
     
@@ -171,7 +171,7 @@
         }
         
         // ตกแต่งปุ่มตามประเภทเงื่อนไข
-        if ([rowData[@"subtitle_val"] isEqualToString:@"Developer from TGS Team"]) {
+        if ([rowData[@"subtitle_val"] isEqualToString:@"นักพัฒนาจากทีม TGS"]) {
             cell.selectionStyle = UITableViewCellSelectionStyleDefault;
         }
     }
@@ -199,7 +199,7 @@
     NSString *sectionTitle = _sectionTitles[indexPath.section];
     NSDictionary *rowData = _tableData[sectionTitle][indexPath.row];
     
-    if ([rowData[@"subtitle_val"] isEqualToString:@"Developer from TGS Team"]) {
+    if ([rowData[@"subtitle_val"] isEqualToString:@"นักพัฒนาจากทีม TGS"]) {
         NSURL *telegramURL = [NSURL URLWithString:@"tg://user?id=6105731078"];
         if ([[UIApplication sharedApplication] canOpenURL:telegramURL]) {
             [[UIApplication sharedApplication] openURL:telegramURL options:@{} completionHandler:nil];

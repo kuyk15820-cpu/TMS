@@ -38,7 +38,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let targetBundleID = "com.dts.freefireth" // เปลี่ยน Bundle ID ตามต้องการ
         
         // เรียกใช้ Objective-C Tool ที่เราสร้างขึ้น
-        let success = FileTransferTool.createLocalConfigInTargetApp(targetBundleID)
+        let success = FileTransferTool.createLocalConfig(inTargetApp: targetBundleID)
         
         let message = success ? "สร้างไฟล์ localConfig.json สำเร็จ!" : "สร้างไฟล์ไม่สำเร็จ (ไม่พบแอปเป้าหมายหรือติดสิทธิ์)"
         

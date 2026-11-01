@@ -148,9 +148,9 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
-    // 🟢 ตรวจสอบสถานะไฟล์ config จริงจากแอปเป้าหมาย
+    // 🟢 ตรวจสอบสถานะไฟล์ config จริงจากแอปเป้าหมาย (อัปเดตชื่อเมธอดให้ตรงกับ Objective-C)
     func refreshFileStatus() {
-        isFileFeatureEnabled = FileTransferTool.isLocalConfigExist(inTargetApp: targetApp.bundleID)
+        isFileFeatureEnabled = FileTransferTool.isLocalConfigExistInTargetApp(targetApp.bundleID)
     }
     
     // 🟢 ตรวจสอบสถานะ Process และ PID โดยใช้เงื่อนไขแบบเดียวกับ AppDelegate

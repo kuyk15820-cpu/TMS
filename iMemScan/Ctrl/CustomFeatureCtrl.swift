@@ -76,12 +76,55 @@ class ScriptManagerViewModel: ObservableObject {
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
     
+    init() {
+        loadFromJson()
+        // ตรวจสอบและเพิ่มฟีเจอร์หลักเริ่มต้นถ้ายังไม่มี
+        if !features.contains(where: { $0.name == "ปักธงโจรสลัด" }) {
+            let systemFeature = ScriptFeature(
+                name: "ปักธงโจรสลัด",
+                originalValue: "909000128",
+                modifiedValue: "909000034",
+                isSaved: true,
+                isEnabled: false
+            )
+            features.insert(systemFeature, at: 0)
+            saveToJson()
+        }
+    }
+    
     func scrollToBottom() {
         if let lastID = features.last?.id {
             withAnimation {
                 scrollToProxy?.scrollTo(lastID, anchor: .bottom)
             }
         }
+    }
+    
+    // 🟢 จัดการไฟล์ JSON ภายใน ViewModel
+    func getJSONFileURL() -> URL {
+        let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let trollDir = docDir.appendingPathComponent("TrollMemScan")
+        if !FileManager.default.fileExists(atPath: trollDir.path) {
+            try? FileManager.default.createDirectory(at: trollDir, withIntermediateDirectories: true)
+        }
+        return trollDir.appendingPathComponent("trollmemscan.json")
+    }
+    
+    func saveToJson() {
+        let url = getJSONFileURL()
+        do {
+            let data = try JSONEncoder().encode(features)
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            print("Failed to save JSON: \(error)")
+        }
+    }
+    
+    func loadFromJson() {
+        let url = getJSONFileURL()
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([ScriptFeature].self, from: data) else { return }
+        features = decoded
     }
     
     // 🟢 ตรวจสอบสถานะการติดตั้งแอปผ่าน LSApplicationWorkspace แบบแม่นยำ
@@ -490,7 +533,7 @@ struct ScriptManagerView: View {
                                     onDelete: {
                                         if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
                                             viewModel.features.remove(at: index)
-                                            saveToJson()
+                                            viewModel.saveToJson()
                                         }
                                     },
                                     onAction: {
@@ -504,7 +547,7 @@ struct ScriptManagerView: View {
                                             initialValue: feature.originalValue
                                         ) { newValue in
                                             feature.originalValue = newValue
-                                            saveToJson()
+                                            viewModel.saveToJson()
                                         }
                                     },
                                     onEditModified: {
@@ -515,7 +558,7 @@ struct ScriptManagerView: View {
                                             initialValue: feature.modifiedValue
                                         ) { newValue in
                                             feature.modifiedValue = newValue
-                                            saveToJson()
+                                            viewModel.saveToJson()
                                         }
                                     }
                                 )
@@ -528,20 +571,6 @@ struct ScriptManagerView: View {
                 }
                 .onAppear {
                     viewModel.scrollToProxy = proxy
-                    loadFromJson()
-                    
-                    if !viewModel.features.contains(where: { $0.name == "ปักธงโจรสลัด" }) {
-                        let systemFeature = ScriptFeature(
-                            name: "ปักธงโจรสลัด",
-                            originalValue: "909000128",
-                            modifiedValue: "909000034",
-                            isSaved: true,
-                            isEnabled: false
-                        )
-                        viewModel.features.insert(systemFeature, at: 0)
-                        saveToJson()
-                    }
-                    
                     viewModel.refreshTargetStatus()
                 }
                 .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
@@ -559,7 +588,7 @@ struct ScriptManagerView: View {
                             } else {
                                 let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
                                 viewModel.features.append(newFeature)
-                                saveToJson()
+                                viewModel.saveToJson()
                                 newName = ""
                                 viewModel.scrollToBottom()
                             }
@@ -570,7 +599,7 @@ struct ScriptManagerView: View {
                         newName = ""
                     }
                 } message: {
-                    Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
+                    Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "กรอกชื่อฟีเจอร์ใหม่ของคุณ โดยชื่อฟีเจอร์ใหม่จะต้องไม่ซ้ำกับชื่อฟีเจอร์เดิมที่มีอยู่")
                 }
             }
             
@@ -613,7 +642,7 @@ struct ScriptManagerView: View {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
                 feature.isSaved = true
-                saveToJson()
+                viewModel.saveToJson() // 🟢 บันทึกลง JSON ทันทีเมื่อกดบันทึกสำเร็จ
             }
         } else {
             guard viewModel.isAppInstalled else {
@@ -671,31 +700,5 @@ struct ScriptManagerView: View {
                 }
             }
         }
-    }
-    
-    func getJSONFileURL() -> URL {
-        let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let trollDir = docDir.appendingPathComponent("TrollMemScan")
-        if !FileManager.default.fileExists(atPath: trollDir.path) {
-            try? FileManager.default.createDirectory(at: trollDir, withIntermediateDirectories: true)
-        }
-        return trollDir.appendingPathComponent("trollmemscan.json")
-    }
-    
-    func saveToJson() {
-        let url = getJSONFileURL()
-        do {
-            let data = try JSONEncoder().encode(viewModel.features)
-            try data.write(to: url)
-        } catch {
-            print("Failed to save JSON: \(error)")
-        }
-    }
-    
-    func loadFromJson() {
-        let url = getJSONFileURL()
-        guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode([ScriptFeature].self, from: data) else { return }
-        viewModel.features = decoded
     }
 }

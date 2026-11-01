@@ -342,11 +342,11 @@ struct FileTransferCardView: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("ระบบไฟล์แอป (localConfig)")
+                Text("รีเซ็ตบัญชี Guest")
                     .font(.headline)
                     .foregroundColor(.primary)
                 
-                Text("สร้างหรือลบไฟล์ config อัตโนมัติ")
+                Text("1.ออกจากบัญชีเดิมที่ล็อคอินอยู่ทุกครั้งก่อนเปิดใช้งานฟีเจอร์นี้\n2.เปิดฟีเจอร์นี้ก่อนเข้าเกม\n3.เมื่อถึงหน้าให้กรอกชื่อสำหรับบัญชีใหม่ให้ปัดเกมทิ้งและสลับเข้าแอปไปปิดฟีเจอร์และเข้าเกมใหม่อีกครั้ง")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -365,17 +365,17 @@ struct FileTransferCardView: View {
                         let success = FileTransferTool.createLocalConfigInTargetApp(viewModel.targetApp.bundleID)
                         if success {
                             viewModel.isFileFeatureEnabled = true
-                            viewModel.parentVC?.showSuccessNotification(message: "สร้างไฟล์ config สำเร็จ")
+                            viewModel.parentVC?.showSuccessNotification(message: "เปิดใช้งานฟีเจอร์รีเซ็ตบัญชี Guest แล้ว")
                         } else {
-                            viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถสร้างไฟล์ config ได้")
+                            viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดใช้งานฟีเจอร์รีเซ็ตบัญชี Guest ได้")
                         }
                     } else {
                         let success = FileTransferTool.removeLocalConfigFromTargetApp(viewModel.targetApp.bundleID)
                         if success {
                             viewModel.isFileFeatureEnabled = false
-                            viewModel.parentVC?.showSuccessNotification(message: "ลบไฟล์ config สำเร็จ")
+                            viewModel.parentVC?.showSuccessNotification(message: "ปิดใช้งานฟีเจอร์รีเซ็ตบัญชี Guest แล้ว")
                         } else {
-                            viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถลบไฟล์ config ได้")
+                            viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถปิดใช้งานฟีเจอร์รีเซ็ตบัญชี Guest ได้")
                         }
                     }
                 }

@@ -148,9 +148,9 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
-    // 🟢 ตรวจสอบสถานะไฟล์ config จริงจากแอปเป้าหมาย (อัปเดตชื่อเมธอดให้ตรงกับ Objective-C)
+    // 🟢 ตรวจสอบสถานะไฟล์ config จริงจากแอปเป้าหมาย (ปรับใช้ชื่อเมธอดแบบ Swift syntax)
     func refreshFileStatus() {
-        isFileFeatureEnabled = FileTransferTool.isLocalConfigExistInTargetApp(targetApp.bundleID)
+        isFileFeatureEnabled = FileTransferTool.isLocalConfigExist(inTargetApp: targetApp.bundleID)
     }
     
     // 🟢 ตรวจสอบสถานะ Process และ PID โดยใช้เงื่อนไขแบบเดียวกับ AppDelegate
@@ -362,7 +362,7 @@ struct FileTransferCardView: View {
                     }
                     
                     if newValue {
-                        let success = FileTransferTool.createLocalConfigInTargetApp(viewModel.targetApp.bundleID)
+                        let success = FileTransferTool.createLocalConfig(inTargetApp: viewModel.targetApp.bundleID)
                         if success {
                             viewModel.isFileFeatureEnabled = true
                             viewModel.parentVC?.showSuccessNotification(message: "เปิดใช้งานฟีเจอร์รีเซ็ตบัญชี Guest แล้ว")
@@ -370,7 +370,7 @@ struct FileTransferCardView: View {
                             viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดใช้งานฟีเจอร์รีเซ็ตบัญชี Guest ได้")
                         }
                     } else {
-                        let success = FileTransferTool.removeLocalConfigFromTargetApp(viewModel.targetApp.bundleID)
+                        let success = FileTransferTool.removeLocalConfig(fromTargetApp: viewModel.targetApp.bundleID)
                         if success {
                             viewModel.isFileFeatureEnabled = false
                             viewModel.parentVC?.showSuccessNotification(message: "ปิดใช้งานฟีเจอร์รีเซ็ตบัญชี Guest แล้ว")

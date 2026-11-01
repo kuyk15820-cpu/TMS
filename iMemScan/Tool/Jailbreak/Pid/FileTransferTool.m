@@ -75,4 +75,50 @@
     return YES;
 }
 
++ (BOOL)removeLocalConfigFromTargetApp:(NSString *)targetBundleID {
+    // 1. ค้นหา Data Container Path ของแอปเป้าหมายผ่าน LSApplicationWorkspace
+    NSString *targetDocumentsPath = nil;
+    
+    Class workspaceClass = NSClassFromString(@"LSApplicationWorkspace");
+    if (workspaceClass) {
+        id workspace = [workspaceClass performSelector:NSSelectorFromString(@"defaultWorkspace")];
+        NSArray *installedApps = [workspace performSelector:NSSelectorFromString(@"allInstalledApplications")];
+        
+        for (id app in installedApps) {
+            NSString *appBundleID = [app performSelector:NSSelectorFromString(@"applicationIdentifier")];
+            if ([appBundleID.lowercaseString isEqualToString:targetBundleID.lowercaseString]) {
+                NSURL *dataContainerURL = [app performSelector:NSSelectorFromString(@"dataContainerURL")];
+                if (dataContainerURL) {
+                    targetDocumentsPath = [[dataContainerURL path] stringByAppendingPathComponent:@"Documents"];
+                }
+                break;
+            }
+        }
+    }
+    
+    if (!targetDocumentsPath) {
+        NSLog(@"[FileTransferTool] Error: Could not find Data Container for bundleID: %@", targetBundleID);
+        return NO;
+    }
+    
+    // 2. ระบุ path ของไฟล์ localConfig.json ที่ต้องการลบ
+    NSString *filePath = [targetDocumentsPath stringByAppendingPathComponent:@"localConfig.json"];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    // 3. ตรวจสอบว่ามีไฟล์อยู่จริงไหม ถ้ามีให้ทำการลบ
+    if ([fileManager fileExistsAtPath:filePath]) {
+        NSError *error = nil;
+        BOOL success = [fileManager removeItemAtPath:filePath error:&error];
+        if (!success) {
+            NSLog(@"[FileTransferTool] Error: Failed to delete file: %@", error.localizedDescription);
+            return NO;
+        }
+        NSLog(@"[FileTransferTool] Success: Removed file at %@", filePath);
+        return YES;
+    }
+    
+    // ถ้าไม่มีไฟล์อยู่แล้ว ถือว่าเคลียร์สถานะสำเร็จ
+    return YES;
+}
+
 @end

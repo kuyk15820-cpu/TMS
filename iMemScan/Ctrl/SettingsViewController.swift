@@ -50,8 +50,8 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         let version = (infoPlist["CFBundleShortVersionString"] as? String) ?? "1.0"
         
         // ดึงวันเวลาคอมไพล์จาก Compiler Macro มาตรฐานอัตโนมัติ
-        let compileDate = String(cString: __DATE__)
-        let compileTime = String(cString: __TIME__)
+        let compileDate = String(validatingUTF8: __DATE__) ?? ""
+        let compileTime = String(validatingUTF8: __TIME__) ?? ""
         let buildTimeStr = "\(compileDate) \(compileTime)"
         
         let fullVersion = "v\(version) (\(buildTimeStr))"
@@ -69,7 +69,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         ]
         
         tableView = UITableView(frame: view.bounds, style: .insetGrouped)
-        tableView.backgroundColor = .systemGroupedBackgroundColor
+        tableView.backgroundColor = .systemGroupedBackground
         tableView.separatorColor = .separator
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.delegate = self
@@ -105,7 +105,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
             return UITableViewCell()
         }
         
-        let cellIdentifier = (indexPath.section == 0) ? "SingleAppInfoCell" : "StandardSettingsCell"
+        let cellIdentifier = (indexPath.section == 0) ? @"SingleAppInfoCell" : @"StandardSettingsCell"
         var cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier)
         
         if cell == nil {
@@ -192,7 +192,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         }
     }
 
-    func tableView(_ tableView: UITableView, heightForRowAtIndexPath indexPath: IndexPath) -> CGFloat {
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return (indexPath.section == 0) ? 65.0 : 60.0
     }
 

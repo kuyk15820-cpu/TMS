@@ -21,51 +21,32 @@ struct NoHighlightButtonStyle: ButtonStyle {
     }
 }
 
-// Model สำหรับจัดการข้อมูลฟีเจอร์ (ไม่บันทึก isEnabled ลง JSON)
-struct ScriptFeature: Identifiable, Codable {
-    var id = UUID()
-    var name: String
+// 🟢 Model สำหรับจัดการข้อมูลฟีเจอร์ รองรับ Convertible (.kj) แบบ SetModel
+struct ScriptFeature: Convertible, Identifiable {
+    var id: String = UUID().uuidString
+    var name: String = ""
     var originalValue: String = ""
     var modifiedValue: String = ""
     var isSaved: Bool = false
     var isEnabled: Bool = false
     
-    enum CodingKeys: String, CodingKey {
-        case name, originalValue, modifiedValue, isSaved
-    }
-    
-    init(id: UUID = UUID(), name: String, originalValue: String = "", modifiedValue: String = "", isSaved: Bool = false, isEnabled: Bool = false) {
+    init(id: String = UUID().uuidString, name: String, originalValue: String = "", modifiedValue: String = "", isSaved: Bool = false, isEnabled: Bool = false) {
         self.id = id
         self.name = name
         self.originalValue = originalValue
         self.modifiedValue = modifiedValue
         self.isSaved = isSaved
-        self.isEnabled = isEnabled
+        self.isEnabled = false // 🟢 บังคับให้เป็น false เสมอเมื่อเปิดแอปใหม่ ไม่จำสถานะเปิด/ปิด
     }
     
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decode(String.self, forKey: .name)
-        originalValue = try container.decodeIfPresent(String.self, forKey: .originalValue) ?? ""
-        modifiedValue = try container.decodeIfPresent(String.self, forKey: .modifiedValue) ?? ""
-        isSaved = try container.decodeIfPresent(Bool.self, forKey: .isSaved) ?? false
-        isEnabled = false // 🟢 บังคับให้เป็น false เสมอเมื่อเปิดแอปใหม่ ไม่จำสถานะเปิด/ปิด
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(name, forKey: .name)
-        try container.encode(originalValue, forKey: .originalValue)
-        try container.encode(modifiedValue, forKey: .modifiedValue)
-        try container.encode(isSaved, forKey: .isSaved)
-    }
+    init() {}
 }
 
-// ViewModel เพื่อใช้แชร์สถานะระหว่าง UIKit และ SwiftUI ได้อย่างแม่นยำ
+// 🟢 ViewModel ที่จำลองระบบจัดการข้อมูลกลาง (ผสมผสาน SetModel และ VMOneKeyTool)
 class ScriptManagerViewModel: ObservableObject {
     @Published var features: [ScriptFeature] = []
     @Published var showingAddAlert: Bool = false
-    @Published var processingFeatureID: UUID? = nil
+    @Published var processingFeatureID: String? = nil // ใช้ String ID ให้ตรงกับ Model
     
     // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน
     @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
@@ -77,8 +58,38 @@ class ScriptManagerViewModel: ObservableObject {
     weak var parentVC: CustomFeatureCtrl?
     
     init() {
-        loadFromJson()
-        // ตรวจสอบและเพิ่มฟีเจอร์หลักเริ่มต้นถ้ายังไม่มี
+        setup()
+    }
+    
+    // 🟢 กำหนดพาธไฟล์แบบเดียวกับ SetModel และ VMOneKeyTool
+    private static func dataFilePath() -> URL {
+#if false
+        let documentURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        return documentURL!.appendingPathComponent("ScriptFeatures.data")
+#else
+        let dirURL = URL(fileURLWithPath: "/var/mobile/TrollMemScan(Script)")
+        if !FileManager.default.fileExists(atPath: dirURL.path) {
+            try? FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
+        }
+        return dirURL.appendingPathComponent("ScriptFeatures.data")
+#endif
+    }
+    
+    // 🟢 โหลดข้อมูลและตั้งค่าเริ่มต้นแบบเดียวกับ VMOneKeyTool
+    func setup() {
+        let path = Self.dataFilePath()
+        
+        if !FileManager.default.fileExists(atPath: path.path) {
+            FileManager.default.createFile(atPath: path.path, contents: nil, attributes: nil)
+        }
+        
+        if let jsonString = try? String(contentsOf: path, encoding: .utf8), jsonString.count > 0 {
+            if let decodedArray = jsonString.kj.modelArray(ScriptFeature.self) {
+                features = decodedArray
+            }
+        }
+        
+        // ตรวจสอบฟีเจอร์หลัก "ปักธงโจรสลัด"
         if !features.contains(where: { $0.name == "ปักธงโจรสลัด" }) {
             let systemFeature = ScriptFeature(
                 name: "ปักธงโจรสลัด",
@@ -88,43 +99,48 @@ class ScriptManagerViewModel: ObservableObject {
                 isEnabled: false
             )
             features.insert(systemFeature, at: 0)
-            saveToJson()
+            saveAll()
+        }
+        
+        // บังคับสถานะ isEnabled เป็น false เสมอ
+        for i in 0..<features.count {
+            features[i].isEnabled = false
+        }
+        
+        // ดักจับเหตุการณ์ตอนแอปกำลังจะปิดตัวลง (UIApplicationWillTerminateNotification)
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.saveAll()
         }
     }
     
-    func scrollToBottom() {
-        if let lastID = features.last?.id {
-            withAnimation {
-                scrollToProxy?.scrollTo(lastID, anchor: .bottom)
-            }
-        }
-    }
-    
-    // 🟢 จัดการไฟล์ JSON ภายใน ViewModel
-    func getJSONFileURL() -> URL {
-        let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let trollDir = docDir.appendingPathComponent("TrollMemScan")
-        if !FileManager.default.fileExists(atPath: trollDir.path) {
-            try? FileManager.default.createDirectory(at: trollDir, withIntermediateDirectories: true)
-        }
-        return trollDir.appendingPathComponent("trollmemscan.json")
-    }
-    
-    func saveToJson() {
-        let url = getJSONFileURL()
+    // 🟢 บันทึกข้อมูลทั้งหมดลงไฟล์ทันที (.kj JSONString + writeToFile)
+    func saveAll() {
+        let jsonString = features.kj.JSONString()
         do {
-            let data = try JSONEncoder().encode(features)
-            try data.write(to: url, options: [.atomic])
+            try jsonString.write(to: Self.dataFilePath(), atomically: true, encoding: .utf8)
         } catch {
             print("Failed to save JSON: \(error)")
         }
     }
     
-    func loadFromJson() {
-        let url = getJSONFileURL()
-        guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode([ScriptFeature].self, from: data) else { return }
-        features = decoded
+    // 🟢 ฟังก์ชันบันทึกสถานะของฟีเจอร์เฉพาะตัว
+    func saveFeatureState(id: String, isSaved: Bool) {
+        if let index = features.firstIndex(where: { $0.id == id }) {
+            features[index].isSaved = isSaved
+            saveAll()
+        }
+    }
+    
+    func scrollToBottom() {
+        if let lastID = features.last.map({ UUID(uuidString: $0.id) ?? UUID() }) {
+            withAnimation {
+                scrollToProxy?.scrollTo(lastID, anchor: .bottom)
+            }
+        }
     }
     
     // 🟢 ตรวจสอบสถานะการติดตั้งแอปผ่าน LSApplicationWorkspace แบบแม่นยำ
@@ -145,7 +161,7 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
-    // 🟢 ตรวจสอบสถานะ Process และ PID โดยใช้เงื่อนไขแบบเดียวกับ AppDelegate
+    // 🟢 ตรวจสอบสถานะ Process และ PID
     func refreshTargetStatus() {
         checkAppInstallation()
         
@@ -381,7 +397,8 @@ struct FeatureCardView: View {
     }
     
     var isLoading: Bool {
-        viewModel.processingFeatureID == feature.id
+        guard let uuid = UUID(uuidString: feature.id) else { return false }
+        return viewModel.processingFeatureID == feature.id
     }
     
     var isAnyOtherLoading: Bool {
@@ -533,7 +550,7 @@ struct ScriptManagerView: View {
                                     onDelete: {
                                         if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
                                             viewModel.features.remove(at: index)
-                                            viewModel.saveToJson()
+                                            viewModel.saveAll()
                                         }
                                     },
                                     onAction: {
@@ -547,7 +564,7 @@ struct ScriptManagerView: View {
                                             initialValue: feature.originalValue
                                         ) { newValue in
                                             feature.originalValue = newValue
-                                            viewModel.saveToJson()
+                                            viewModel.saveAll()
                                         }
                                     },
                                     onEditModified: {
@@ -558,7 +575,7 @@ struct ScriptManagerView: View {
                                             initialValue: feature.modifiedValue
                                         ) { newValue in
                                             feature.modifiedValue = newValue
-                                            viewModel.saveToJson()
+                                            viewModel.saveAll()
                                         }
                                     }
                                 )
@@ -588,7 +605,7 @@ struct ScriptManagerView: View {
                             } else {
                                 let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
                                 viewModel.features.append(newFeature)
-                                viewModel.saveToJson()
+                                viewModel.saveAll()
                                 newName = ""
                                 viewModel.scrollToBottom()
                             }
@@ -641,8 +658,7 @@ struct ScriptManagerView: View {
     func handleButtonAction(for feature: inout ScriptFeature) {
         if !feature.isSaved {
             if feature.originalValue.count >= 9 && feature.modifiedValue.count >= 9 {
-                feature.isSaved = true
-                viewModel.saveToJson() // 🟢 บันทึกลง JSON ทันทีเมื่อกดบันทึกสำเร็จ
+                viewModel.saveFeatureState(id: feature.id, isSaved: true)
             }
         } else {
             guard viewModel.isAppInstalled else {

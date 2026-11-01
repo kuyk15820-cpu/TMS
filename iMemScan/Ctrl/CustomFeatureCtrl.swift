@@ -84,9 +84,10 @@ class ScriptManagerViewModel: ObservableObject {
         }
         
         if let jsonString = try? String(contentsOf: path, encoding: .utf8), jsonString.count > 0 {
-            if let decodedArray = jsonString.kj.modelArray(ScriptFeature.self) {
-                features = decodedArray
-            }
+        let decodedArray = jsonString.kj.modelArray(ScriptFeature.self)
+if !decodedArray.isEmpty {
+    features = decodedArray
+}
         }
         
         // ตรวจสอบฟีเจอร์หลัก "ปักธงโจรสลัด"

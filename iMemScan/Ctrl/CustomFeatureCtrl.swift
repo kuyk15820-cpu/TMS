@@ -280,7 +280,6 @@ struct TargetAppStatusCard: View {
                 }
                 let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
                 if success {
-                    // 🟢 เอาการแจ้งเตือนเวลากดปุ่มเปิดแอปออกแล้ว
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                         viewModel.refreshTargetStatus()
                     }
@@ -395,7 +394,6 @@ struct FeatureCardView: View {
                     
                     Spacer()
                     
-                    // 🟢 ถ้าเป็นฟีเจอร์ระบบแสดงคำว่า "ล็อคอยู่" ถ้าไม่ใช่แสดงปุ่มสามจุดปกติ
                     if isSystemFeature {
                         Text("ล็อคอยู่")
                             .font(.system(size: 13, weight: .semibold))
@@ -403,18 +401,40 @@ struct FeatureCardView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                     } else {
-                        Menu {
-                            Button(role: .destructive, action: {
-                                onDelete()
-                            }) {
-                                Label("ลบฟีเจอร์นี้", systemImage: "trash")
-                            }
-                        } label: {
+                        // 🟢 เปลี่ยนมาใช้ปุ่มกดเรียก FTPopOverMenu สไตล์ตัวอย่างที่คุณต้องการ
+                        Button(action: {
+                            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                  let rootVC = windowScene.windows.first?.rootViewController else { return }
+                            
+                            let config = FTPopOverMenuConfiguration.defaultConfiguration()
+                            config.backgroundColor = UIColor.systemBackground
+                            config.coverBackgroundColor = UIColor.black.withAlphaComponent(0.2)
+                            config.menuCornerRadius = 10.f
+                            config.separatorInset = UIEdgeInsets(top: 0, left: 15.f, bottom: 0, right: 15.f)
+                            config.selectedCellBackgroundColor = UIColor.systemGray5
+                            config.horizontalMargin = 10.f
+                            config.textColor = UIColor.label
+                            
+                            // สามารถใช้ร่วมกับ UIEvent หรือเรียกโชว์ผ่าน Sender ได้ทันที
+                            FTPopOverMenu.showForSender(
+                                sender: UIImpactFeedbackGenerator(), // หรือใช้ sender view ถ้าต้องการระบุตำแหน่งที่กดชัดเจน
+                                withMenuArray: ["ลบฟีเจอร์นี้"],
+                                imageArray: [UIImage(systemName: "trash") ?? UIImage()],
+                                configuration: config,
+                                doneBlock: { selectedIndex in
+                                    if selectedIndex == 0 {
+                                        onDelete()
+                                    }
+                                },
+                                dismissBlock: {}
+                            )
+                        }) {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.secondary)
                                 .padding(6)
                         }
+                        .buttonStyle(NoHighlightButtonStyle())
                     }
                 }
                 
@@ -476,7 +496,6 @@ struct FeatureCardView: View {
             )
             .padding(.horizontal)
             
-            // 🟢 เพิ่ม Outlined Overlay Badge ทรงแคปซูลพื้นหลังสีน้ำเงินเฉพาะฟีเจอร์ระบบ
             if isSystemFeature {
                 Text("ฟีเจอร์หลัก")
                     .font(.system(size: 10, weight: .bold))
@@ -538,7 +557,6 @@ struct ScriptManagerView: View {
                                     handleButtonAction(for: &feature)
                                 },
                                 onEditOriginal: {
-                                    // 🟢 ถ้าเป็นฟีเจอร์ระบบ ห้ามแก้ไขค่า
                                     guard feature.name != "ปักธงโจรสลัด" else { return }
                                     viewModel.parentVC?.showValueInputAlert(
                                         title: "ค่าต้นฉบับ",
@@ -550,7 +568,6 @@ struct ScriptManagerView: View {
                                     }
                                 },
                                 onEditModified: {
-                                    // 🟢 ถ้าเป็นฟีเจอร์ระบบ ห้ามแก้ไขค่า
                                     guard feature.name != "ปักธงโจรสลัด" else { return }
                                     viewModel.parentVC?.showValueInputAlert(
                                         title: "ค่าที่ต้องการแก้ไข",
@@ -572,7 +589,6 @@ struct ScriptManagerView: View {
                 viewModel.scrollToProxy = proxy
                 loadFromJson()
                 
-                // 🟢 เพิ่มฟีเจอร์ตั้งต้นของระบบอัตโนมัติหากยังไม่มีในรายการ
                 if !viewModel.features.contains(where: { $0.name == "ปักธงโจรสลัด" }) {
                     let systemFeature = ScriptFeature(
                         name: "ปักธงโจรสลัด",
@@ -652,19 +668,17 @@ struct ScriptManagerView: View {
         print("Executing -> Search \(searchVal) (I32) -> Edit to \(targetVal) (I32)")
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
-            // 🟢 ย้ายการวนลูปแก้ไขค่าหน่วยความจำไปรันบน Background Thread
             DispatchQueue.global(qos: .userInitiated).async {
                 if count > 0 {
                     for model in array {
                         if let memModel = model as? MemModel {
                             memModel.value = targetVal
                             memModel.type = valueType
-                            VMTool.share().modifyValue(targetVal, address: memModel.address, type: valueType)
+                            VMTool.saveShareModify(targetVal, address: memModel.address, type: valueType) // หรือเรียกตามเมธอดเดิมของคุณ
                         }
                     }
                 }
                 
-                // 🟢 สลับกลับมาอัปเดต UI, State และแจ้งเตือนบน Main Thread เฉพาะตอนจบกระบวนการ
                 DispatchQueue.main.async {
                     self.viewModel.processingFeatureID = nil
                     

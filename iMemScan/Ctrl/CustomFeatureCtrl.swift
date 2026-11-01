@@ -148,9 +148,15 @@ class ScriptManagerViewModel: ObservableObject {
         }
     }
     
+    // 🟢 ตรวจสอบสถานะไฟล์ config จริงจากแอปเป้าหมาย
+    func refreshFileStatus() {
+        isFileFeatureEnabled = FileTransferTool.isLocalConfigExist(inTargetApp: targetApp.bundleID)
+    }
+    
     // 🟢 ตรวจสอบสถานะ Process และ PID โดยใช้เงื่อนไขแบบเดียวกับ AppDelegate
     func refreshTargetStatus() {
         checkAppInstallation()
+        refreshFileStatus() // 🟢 เช็คสถานะไฟล์ config ทุกครั้งที่รีเฟรชสถานะแอป
         
         currentPID = nil
         isAppRunning = false
@@ -329,7 +335,7 @@ struct TargetAppStatusCard: View {
     }
 }
 
-// 🟢 การ์ดใหม่: ระบบไฟล์แอป (เปิด-ปิดด้วย Switch)
+// 🟢 การ์ดใหม่: ระบบไฟล์แอป (เปิด-ปิดด้วย Switch และอัปเดตสถานะตรงกับไฟล์จริง)
 struct FileTransferCardView: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -356,7 +362,7 @@ struct FileTransferCardView: View {
                     }
                     
                     if newValue {
-                        let success = FileTransferTool.createLocalConfig(inTargetApp: viewModel.targetApp.bundleID)
+                        let success = FileTransferTool.createLocalConfigInTargetApp(viewModel.targetApp.bundleID)
                         if success {
                             viewModel.isFileFeatureEnabled = true
                             viewModel.parentVC?.showSuccessNotification(message: "สร้างไฟล์ config สำเร็จ")
@@ -364,7 +370,7 @@ struct FileTransferCardView: View {
                             viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถสร้างไฟล์ config ได้")
                         }
                     } else {
-                        let success = FileTransferTool.removeLocalConfig(fromTargetApp: viewModel.targetApp.bundleID)
+                        let success = FileTransferTool.removeLocalConfigFromTargetApp(viewModel.targetApp.bundleID)
                         if success {
                             viewModel.isFileFeatureEnabled = false
                             viewModel.parentVC?.showSuccessNotification(message: "ลบไฟล์ config สำเร็จ")
@@ -586,7 +592,7 @@ struct ScriptManagerView: View {
                         TargetAppStatusCard(viewModel: viewModel)
                             .padding(.top, 8)
                         
-                        // 🟢 เพิ่มการ์ดระบบไฟล์แอปต่อจากการ์ดสถานะ
+                        // 🟢 การ์ดระบบไฟล์แอปต่อจากการ์ดสถานะ
                         FileTransferCardView(viewModel: viewModel)
                         
                         LazyVStack(spacing: 16) {

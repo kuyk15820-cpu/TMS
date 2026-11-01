@@ -227,7 +227,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (เอาปุ่มเปิดแอปออกแล้ว)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ไม่มีปุ่มเปิดแอปแล้ว)
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -333,7 +333,6 @@ struct FeatureCardView: View {
     var onEditOriginal: () -> Void
     var onEditModified: () -> Void
     
-    // 🟢 ตรวจสอบว่าเป็นฟีเจอร์ระบบเริ่มต้นหรือไม่ ("ปักธงโจรสลัด")
     var isSystemFeature: Bool {
         feature.name == "ปักธงโจรสลัด"
     }
@@ -356,7 +355,6 @@ struct FeatureCardView: View {
                     
                     Spacer()
                     
-                    // 🟢 ถ้าเป็นฟีเจอร์ระบบแสดงคำว่า "ล็อคอยู่" ถ้าไม่ใช่แสดงปุ่มสามจุดปกติ
                     if isSystemFeature {
                         Text("ล็อคอยู่")
                             .font(.system(size: 13, weight: .semibold))
@@ -437,7 +435,6 @@ struct FeatureCardView: View {
             )
             .padding(.horizontal)
             
-            // 🟢 เพิ่ม Outlined Overlay Badge ทรงแคปซูลพื้นหลังสีน้ำเงินเฉพาะฟีเจอร์ระบบ
             if isSystemFeature {
                 Text("ฟีเจอร์หลัก")
                     .font(.system(size: 10, weight: .bold))
@@ -527,7 +524,7 @@ struct ScriptManagerView: View {
                         }
                     }
                     .padding(.vertical)
-                    .padding(.bottom, 80) // เว้นพื้นที่ด้านล่างไม่ให้โดน Floating Button บัง
+                    .padding(.bottom, 80)
                 }
                 .onAppear {
                     viewModel.scrollToProxy = proxy
@@ -577,7 +574,7 @@ struct ScriptManagerView: View {
                 }
             }
             
-            // 🟢 Floating Action Button (FAB) รูปทรงวงกลมขวาล่างสำหรับเปิดแอป
+            // 🟢 Floating Action Button (FAB) ขวาล่าง
             Button(action: {
                 guard viewModel.isAppInstalled else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
@@ -683,7 +680,7 @@ struct ScriptManagerView: View {
         return trollDir.appendingPathComponent("trollmemscan.json")
     }
     
-    `func saveToJson() {
+    func saveToJson() {
         let url = getJSONFileURL()
         do {
             let data = try JSONEncoder().encode(viewModel.features)

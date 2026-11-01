@@ -67,18 +67,7 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var showingAddAlert: Bool = false
     @Published var processingFeatureID: UUID? = nil
     
-    // 🟢 ข้อมูลแอปเป้าหมายปัจจุบันและสถานะโหมด MAX
-    @Published var isMaxMode: Bool = false {
-        didSet {
-            if isMaxMode {
-                targetApp = TargetGameApp(name: "Free Fire MAX", bundleID: "com.dts.freefiremax", active: true)
-            } else {
-                targetApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
-            }
-            refreshTargetStatus()
-        }
-    }
-    
+    // 🟢 ข้อมูลแอปเป้าหมายปัจจุบัน
     @Published var targetApp: TargetGameApp = TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth", active: true)
     @Published var currentPID: Int32? = nil
     @Published var isAppRunning: Bool = false
@@ -124,7 +113,7 @@ class ScriptManagerViewModel: ObservableObject {
         guard let sections = PidModel.refreshModelArray() as? [[PidModel]] else { return }
         
         let targetName = targetApp.name.lowercased()
-        let alternateName = isMaxMode ? "freefiremax" : "FreeFire"
+        let alternateName = "FreeFire"
         
         for section in sections {
             for model in section {
@@ -238,7 +227,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (เปลี่ยนปุ่มเป็นปุ่มสลับโหมดเกม)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -284,11 +273,20 @@ struct TargetAppStatusCard: View {
             
             Divider()
             
-            // 🟢 ปุ่มเปลี่ยนโหมด (สลับระหว่าง Free Fire และ Free Fire MAX)
             Button(action: {
-                viewModel.isMaxMode.toggle()
-                let modeName = viewModel.isMaxMode ? "Free Fire MAX" : "Free Fire"
-                viewModel.parentVC?.showSuccessNotification(message: "เปลี่ยนโหมดเป็น \(modeName) แล้ว")
+                guard viewModel.isAppInstalled else {
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
+                    return
+                }
+                let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
+                if success {
+                    // 🟢 เอาการแจ้งเตือนเวลากดปุ่มเปิดแอปออกแล้ว
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        viewModel.refreshTargetStatus()
+                    }
+                } else {
+                    viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
+                }
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -296,10 +294,10 @@ struct TargetAppStatusCard: View {
                         .frame(height: 40)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.accentColor, lineWidth: 1)
+                                .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
                         )
                     
-                    Label(viewModel.isMaxMode ? "เปลี่ยนเป็น Free Fire ปกติ" : "เปลี่ยนเป็น Free Fire MAX", systemImage: "arrow.triangle.2.circlepath")
+                    Label("เปิดแอป", systemImage: "play")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.primary)
                 }
@@ -374,6 +372,7 @@ struct FeatureCardView: View {
     var onEditOriginal: () -> Void
     var onEditModified: () -> Void
     
+    // 🟢 ตรวจสอบว่าเป็นฟีเจอร์ระบบเริ่มต้นหรือไม่ ("ปักธงโจรสลัด")
     var isSystemFeature: Bool {
         feature.name == "ปักธงโจรสลัด"
     }
@@ -396,6 +395,7 @@ struct FeatureCardView: View {
                     
                     Spacer()
                     
+                    // 🟢 ถ้าเป็นฟีเจอร์ระบบแสดงคำว่า "ล็อคอยู่" ถ้าไม่ใช่แสดงปุ่มสามจุดปกติ
                     if isSystemFeature {
                         Text("ล็อคอยู่")
                             .font(.system(size: 13, weight: .semibold))
@@ -476,8 +476,9 @@ struct FeatureCardView: View {
             )
             .padding(.horizontal)
             
+            // 🟢 เพิ่ม Outlined Overlay Badge ทรงแคปซูลพื้นหลังสีน้ำเงินเฉพาะฟีเจอร์ระบบ
             if isSystemFeature {
-                Text("ฟีเจอร์หลักของระบบ")
+                Text("ฟีเจอร์หลัก")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)
@@ -516,140 +517,104 @@ struct ScriptManagerView: View {
     @State private var newName = ""
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: 16) {
-                        TargetAppStatusCard(viewModel: viewModel)
-                            .padding(.top, 8)
-                        
-                        LazyVStack(spacing: 16) {
-                            ForEach($viewModel.features) { $feature in
-                                FeatureCardView(
-                                    feature: $feature,
-                                    viewModel: viewModel,
-                                    onDelete: {
-                                        if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
-                                            viewModel.features.remove(at: index)
-                                            saveToJson()
-                                        }
-                                    },
-                                    onAction: {
-                                        handleButtonAction(for: &feature)
-                                    },
-                                    onEditOriginal: {
-                                        guard feature.name != "ปักธงโจรสลัด" else { return }
-                                        viewModel.parentVC?.showValueInputAlert(
-                                            title: "ค่าต้นฉบับ",
-                                            message: "กรอกค่าต้นฉบับ อย่างน้อย 9 หลัก",
-                                            initialValue: feature.originalValue
-                                        ) { newValue in
-                                            feature.originalValue = newValue
-                                            saveToJson()
-                                        }
-                                    },
-                                    onEditModified: {
-                                        guard feature.name != "ปักธงโจรสลัด" else { return }
-                                        viewModel.parentVC?.showValueInputAlert(
-                                            title: "ค่าที่ต้องการแก้ไข",
-                                            message: "กรอกค่าที่ต้องการแก้ไข อย่างน้อย 9 หลัก",
-                                            initialValue: feature.modifiedValue
-                                        ) { newValue in
-                                            feature.modifiedValue = newValue
-                                            saveToJson()
-                                        }
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 16) {
+                    TargetAppStatusCard(viewModel: viewModel)
+                        .padding(.top, 8)
+                    
+                    LazyVStack(spacing: 16) {
+                        ForEach($viewModel.features) { $feature in
+                            FeatureCardView(
+                                feature: $feature,
+                                viewModel: viewModel,
+                                onDelete: {
+                                    if let index = viewModel.features.firstIndex(where: { $0.id == feature.id }) {
+                                        viewModel.features.remove(at: index)
+                                        saveToJson()
                                     }
-                                )
-                                .id(feature.id)
-                            }
+                                },
+                                onAction: {
+                                    handleButtonAction(for: &feature)
+                                },
+                                onEditOriginal: {
+                                    // 🟢 ถ้าเป็นฟีเจอร์ระบบ ห้ามแก้ไขค่า
+                                    guard feature.name != "ปักธงโจรสลัด" else { return }
+                                    viewModel.parentVC?.showValueInputAlert(
+                                        title: "ค่าต้นฉบับ",
+                                        message: "กรอกค่าต้นฉบับ อย่างน้อย 9 หลัก",
+                                        initialValue: feature.originalValue
+                                    ) { newValue in
+                                        feature.originalValue = newValue
+                                        saveToJson()
+                                    }
+                                },
+                                onEditModified: {
+                                    // 🟢 ถ้าเป็นฟีเจอร์ระบบ ห้ามแก้ไขค่า
+                                    guard feature.name != "ปักธงโจรสลัด" else { return }
+                                    viewModel.parentVC?.showValueInputAlert(
+                                        title: "ค่าที่ต้องการแก้ไข",
+                                        message: "กรอกค่าที่ต้องการแก้ไข อย่างน้อย 9 หลัก",
+                                        initialValue: feature.modifiedValue
+                                    ) { newValue in
+                                        feature.modifiedValue = newValue
+                                        saveToJson()
+                                    }
+                                }
+                            )
+                            .id(feature.id)
                         }
                     }
-                    .padding(.vertical)
-                    // 🟢 เว้นระยะด้านล่างไม่ให้เนื้อหาถูก Bottom Bar บัง
-                    .padding(.bottom, 80)
                 }
-                .onAppear {
-                    viewModel.scrollToProxy = proxy
-                    loadFromJson()
-                    
-                    if !viewModel.features.contains(where: { $0.name == "ปักธงโจรสลัด" }) {
-                        let systemFeature = ScriptFeature(
-                            name: "ปักธงโจรสลัด",
-                            originalValue: "909000128",
-                            modifiedValue: "909000034",
-                            isSaved: true,
-                            isEnabled: false
-                        )
-                        viewModel.features.insert(systemFeature, at: 0)
-                        saveToJson()
-                    }
-                    
-                    viewModel.refreshTargetStatus()
-                }
-                .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
-                    TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
-                    Button("เพิ่ม") {
-                        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmedName.isEmpty {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                viewModel.showingAddAlert = true
-                            }
-                        } else {
-                            let isDuplicate = viewModel.features.contains { $0.name.lowercased() == trimmedName.lowercased() }
-                            if isDuplicate {
-                                viewModel.parentVC?.showErrorNotification(message: "มีฟีเจอร์ชื่อ '\(trimmedName)' นี้อยู่แล้ว")
-                            } else {
-                                let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
-                                viewModel.features.append(newFeature)
-                                saveToJson()
-                                newName = ""
-                                viewModel.scrollToBottom()
-                            }
-                        }
-                    }
-                    
-                    Button("ยกเลิก", role: .cancel) {
-                        newName = ""
-                    }
-                } message: {
-                    Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
-                }
+                .padding(.vertical)
             }
-            
-            // 🟢 Bottom Bar ล่างสุดสำหรับปุ่มเปิดแอป
-            VStack(spacing: 0) {
-                Divider()
-                Button(action: {
-                    guard viewModel.isAppInstalled else {
-                        viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
-                        return
-                    }
-                    let success = AppLauncher.launchApp(bundleID: viewModel.targetApp.bundleID)
-                    if success {
-                        viewModel.parentVC?.showSuccessNotification(message: "กำลังเปิด \(viewModel.targetApp.name)...")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            viewModel.refreshTargetStatus()
+            .onAppear {
+                viewModel.scrollToProxy = proxy
+                loadFromJson()
+                
+                // 🟢 เพิ่มฟีเจอร์ตั้งต้นของระบบอัตโนมัติหากยังไม่มีในรายการ
+                if !viewModel.features.contains(where: { $0.name == "ปักธงโจรสลัด" }) {
+                    let systemFeature = ScriptFeature(
+                        name: "ปักธงโจรสลัด",
+                        originalValue: "909000128",
+                        modifiedValue: "909000034",
+                        isSaved: true,
+                        isEnabled: false
+                    )
+                    viewModel.features.insert(systemFeature, at: 0)
+                    saveToJson()
+                }
+                
+                viewModel.refreshTargetStatus()
+            }
+            .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
+                TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
+                Button("เพิ่ม") {
+                    let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedName.isEmpty {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            viewModel.showingAddAlert = true
                         }
                     } else {
-                        viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถเปิดแอปได้")
+                        let isDuplicate = viewModel.features.contains { $0.name.lowercased() == trimmedName.lowercased() }
+                        if isDuplicate {
+                            viewModel.parentVC?.showErrorNotification(message: "มีฟีเจอร์ชื่อ '\(trimmedName)' นี้อยู่แล้ว")
+                        } else {
+                            let newFeature = ScriptFeature(name: trimmedName, originalValue: "", modifiedValue: "", isSaved: false, isEnabled: false)
+                            viewModel.features.append(newFeature)
+                            saveToJson()
+                            newName = ""
+                            viewModel.scrollToBottom()
+                        }
                     }
-                }) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.accentColor)
-                            .frame(height: 48)
-                        
-                        Label("เปิด \(viewModel.targetApp.name)", systemImage: "play.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(NoHighlightButtonStyle())
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                
+                Button("ยกเลิก", role: .cancel) {
+                    newName = ""
+                }
+            } message: {
+                Text(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.showingAddAlert ? "กรอกชื่อฟีเจอร์ใหม่ของคุณ" : "Enter a name for your custom I32 feature.")
             }
-            .background(Color(.systemBackground).opacity(0.95))
         }
     }
     
@@ -687,9 +652,8 @@ struct ScriptManagerView: View {
         print("Executing -> Search \(searchVal) (I32) -> Edit to \(targetVal) (I32)")
         
         VMTool.share().searchValue(searchVal, type: valueType, comparison: comparison) { count, array in
-            DispatchQueue.main.async {
-                self.viewModel.processingFeatureID = nil
-                
+            // 🟢 ย้ายการวนลูปแก้ไขค่าหน่วยความจำไปรันบน Background Thread
+            DispatchQueue.global(qos: .userInitiated).async {
                 if count > 0 {
                     for model in array {
                         if let memModel = model as? MemModel {
@@ -698,17 +662,24 @@ struct ScriptManagerView: View {
                             VMTool.share().modifyValue(targetVal, address: memModel.address, type: valueType)
                         }
                     }
-                    
-                    if let index = self.viewModel.features.firstIndex(where: { $0.id == feature.id }) {
-                        self.viewModel.features[index].isEnabled = isApply
-                    }
-                    
-                    let actionText = isApply ? "Enabled" : "Disabled"
-                    viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\n\(count) addresses)")
-                } else {
-                    viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) ของฟีเจอร์ \(feature.name)")
                 }
-                VMTool.share().reset()
+                
+                // 🟢 สลับกลับมาอัปเดต UI, State และแจ้งเตือนบน Main Thread เฉพาะตอนจบกระบวนการ
+                DispatchQueue.main.async {
+                    self.viewModel.processingFeatureID = nil
+                    
+                    if count > 0 {
+                        if let index = self.viewModel.features.firstIndex(where: { $0.id == feature.id }) {
+                            self.viewModel.features[index].isEnabled = isApply
+                        }
+                        
+                        let actionText = isApply ? "Enabled" : "Disabled"
+                        self.viewModel.parentVC?.showSuccessNotification(message: "\(feature.name) successfully \(actionText) (\n\(count) addresses)")
+                    } else {
+                        self.viewModel.parentVC?.showErrorNotification(message: "ไม่พบค่า (\(searchVal)) ของฟีเจอร์ \(feature.name)")
+                    }
+                    VMTool.share().reset()
+                }
             }
         }
     }

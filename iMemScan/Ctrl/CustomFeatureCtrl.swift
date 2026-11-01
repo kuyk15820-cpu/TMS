@@ -407,13 +407,13 @@ struct FeatureCardView: View {
                                   let rootVC = windowScene.windows.first?.rootViewController else { return }
                             
                             let config = FTPopOverMenuConfiguration.defaultConfiguration()
-                            config.backgroundColor = UIColor.systemBackground
-                            config.coverBackgroundColor = UIColor.black.withAlphaComponent(0.2)
-                            config.menuCornerRadius = 10.f
-                            config.separatorInset = UIEdgeInsets(top: 0, left: 15.f, bottom: 0, right: 15.f)
-                            config.selectedCellBackgroundColor = UIColor.systemGray5
-                            config.horizontalMargin = 10.f
-                            config.textColor = UIColor.label
+config?.backgroundColor = UIColor.systemBackground
+config?.coverBackgroundColor = UIColor.black.withAlphaComponent(0.2)
+config?.menuCornerRadius = 10.f
+config?.separatorInset = UIEdgeInsets(top: 0, left: 15.f, bottom: 0, right: 15.f)
+config?.selectedCellBackgroundColor = UIColor.systemGray5
+config?.horizontalMargin = 10.f
+config?.textColor = UIColor.label
                             
                             // สามารถใช้ร่วมกับ UIEvent หรือเรียกโชว์ผ่าน Sender ได้ทันที
                             FTPopOverMenu.showForSender(
@@ -674,7 +674,7 @@ struct ScriptManagerView: View {
                         if let memModel = model as? MemModel {
                             memModel.value = targetVal
                             memModel.type = valueType
-                            VMTool.saveShareModify(targetVal, address: memModel.address, type: valueType) // หรือเรียกตามเมธอดเดิมของคุณ
+                            VMTool.share().modifyValue(targetVal, address: memModel.address, type: valueType)
                         }
                     }
                 }

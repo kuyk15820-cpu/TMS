@@ -105,7 +105,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
             return UITableViewCell()
         }
         
-        let cellIdentifier = (indexPath.section == 0) ? @"SingleAppInfoCell" : @"StandardSettingsCell"
+        let cellIdentifier = (indexPath.section == 0) ? "SingleAppInfoCell" : "StandardSettingsCell"
         var cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier)
         
         if cell == nil {

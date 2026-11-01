@@ -222,7 +222,7 @@ class CustomFeatureCtrl: UIViewController {
         navigationItem.leftBarButtonItem = addBtn
         
         // เพิ่มไอคอนรูปเฟืองไว้ที่มุมขวาบนเพื่อเปิดหน้า Settings
-        let settingsBtn = UIBarButtonItem(image: UIImage(systemName: "gearshape.fill"), style: .plain, target: self, action: #selector(didTapSettingsButton))
+        let settingsBtn = UIBarButtonItem(image: UIImage(systemName: "gear"), style: .plain, target: self, action: #selector(didTapSettingsButton))
         settingsBtn.tintColor = .white
         navigationItem.rightBarButtonItem = settingsBtn
     }

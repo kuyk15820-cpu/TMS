@@ -27,38 +27,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // 🟢 สั่งให้ค้นหาและเซ็ต PID อัตโนมัติทันทีที่แอปเปิด (โดยเช็คจากแอปที่กำลังรันอยู่)
         autoSetTargetProcess()
         
-        // 🟢 [ทดสอบชั่วคราว] เรียกใช้ FileTransferTool เพื่อสร้างไฟล์ localConfig.json ไปยังแอปเป้าหมาย (เช่น Free Fire)
-        testCreateConfigFile()
-        
         return true
-    }
-    
-    // 🟢 ฟังก์ชันทดสอบสร้างไฟล์และแสดง Alert แจ้งผลลัพธ์
-    func testCreateConfigFile() {
-        let targetBundleID = "com.dts.freefireth" // เปลี่ยน Bundle ID ตามต้องการ
-        
-        // เรียกใช้ Objective-C Tool ที่เราสร้างขึ้น
-        let success = FileTransferTool.createLocalConfig(inTargetApp: targetBundleID)
-        
-        let message = success ? "สร้างไฟล์ localConfig.json สำเร็จ!" : "สร้างไฟล์ไม่สำเร็จ (ไม่พบแอปเป้าหมายหรือติดสิทธิ์)"
-        
-        // หน่วงเวลาเล็กน้อยเพื่อให้ UI พร้อมแสดง Alert หลังแอปเปิด
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.showAlert(title: "ทดสอบการสร้างไฟล์", message: message)
-        }
-    }
-    
-    // 🟢 ฟังก์ชันแสดง Alert บนหน้าจอหลัก
-    func showAlert(title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "ตกลง", style: .default, handler: nil))
-        
-        // ค้นหา Window ที่กำลังใช้งานอยู่เพื่อพรีเซนต์ Alert ออกมา
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = scene.windows.first,
-           let rootVC = window.rootViewController {
-            rootVC.present(alert, animated: true, completion: nil)
-        }
     }
     
     // 🟢 ฟังก์ชันบังคับให้แอปพลิเคชันแสดงผลเฉพาะ Dark Mode ตลอดการทำงาน

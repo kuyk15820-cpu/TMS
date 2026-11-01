@@ -27,6 +27,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // 🟢 สั่งให้ค้นหาและเซ็ต PID อัตโนมัติทันทีที่แอปเปิด (โดยเช็คจากแอปที่กำลังรันอยู่)
         autoSetTargetProcess()
         
+        // 🟢 สั่งเช็คสถานะไฟล์ config ของแอปเป้าหมายตั้งแต่เปิดแอป
+        checkInitialFileStatus()
+        
         return true
     }
     
@@ -69,6 +72,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         NSLog("memlog: Target process '\(targetName)' not found or not running.")
+    }
+    
+    // 🟢 ฟังก์ชันเช็คสถานะไฟล์ config ของแอปเป้าหมายตอนเปิดแอป
+    func checkInitialFileStatus() {
+        let targetBundleID = "com.dts.freefireth" // Bundle ID เป้าหมาย
+        let isExist = FileTransferTool.isLocalConfigExist(inTargetApp: targetBundleID)
+        
+        if isExist {
+            NSLog("memlog: Initial check - localConfig.json exists (ON)")
+        } else {
+            NSLog("memlog: Initial check - localConfig.json not found (OFF)")
+        }
     }
     
     // 禁用掉第三方输入法

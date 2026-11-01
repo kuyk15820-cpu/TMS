@@ -401,23 +401,19 @@ struct FeatureCardView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                     } else {
-                        // 🟢 เปลี่ยนมาใช้ปุ่มกดเรียก FTPopOverMenu สไตล์ตัวอย่างที่คุณต้องการ
+                        // 🟢 ปุ่มกดเรียก FTPopOverMenu ที่แก้ไข Syntax เรียบร้อยแล้ว
                         Button(action: {
-                            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                                  let rootVC = windowScene.windows.first?.rootViewController else { return }
-                            
                             let config = FTPopOverMenuConfiguration.defaultConfiguration()
-config?.backgroundColor = UIColor.systemBackground
-config?.coverBackgroundColor = UIColor.black.withAlphaComponent(0.2)
-config?.menuCornerRadius = 10.f
-config?.separatorInset = UIEdgeInsets(top: 0, left: 15.f, bottom: 0, right: 15.f)
-config?.selectedCellBackgroundColor = UIColor.systemGray5
-config?.horizontalMargin = 10.f
-config?.textColor = UIColor.label
+                            config?.backgroundColor = UIColor.systemBackground
+                            config?.coverBackgroundColor = UIColor.black.withAlphaComponent(0.2)
+                            config?.menuCornerRadius = 10
+                            config?.separatorInset = UIEdgeInsets(top: 0, left: 15, bottom: 0, right: 15)
+                            config?.selectedCellBackgroundColor = UIColor.systemGray5
+                            config?.horizontalMargin = 10
+                            config?.textColor = UIColor.label
                             
-                            // สามารถใช้ร่วมกับ UIEvent หรือเรียกโชว์ผ่าน Sender ได้ทันที
                             FTPopOverMenu.showForSender(
-                                sender: UIImpactFeedbackGenerator(), // หรือใช้ sender view ถ้าต้องการระบุตำแหน่งที่กดชัดเจน
+                                sender: UIImpactFeedbackGenerator(),
                                 withMenuArray: ["ลบฟีเจอร์นี้"],
                                 imageArray: [UIImage(systemName: "trash") ?? UIImage()],
                                 configuration: config,
@@ -674,6 +670,7 @@ struct ScriptManagerView: View {
                         if let memModel = model as? MemModel {
                             memModel.value = targetVal
                             memModel.type = valueType
+                            // 🟢 แก้ไขเรียกใช้งานเมธอดmodifyValueของ VMTool ให้ถูกต้อง
                             VMTool.share().modifyValue(targetVal, address: memModel.address, type: valueType)
                         }
                     }

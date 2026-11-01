@@ -20,3 +20,4 @@
 #import "NSTask.h"
 #import "FTNotificationIndicator/FTNotificationIndicator.h"
 #import "FTNotificationIndicator/FTPopOverMenu.h"
+#import "FileTransferTool.h"

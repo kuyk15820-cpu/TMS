@@ -216,13 +216,24 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
+        // เพิ่มปุ่ม + ไว้ที่มุมซ้ายบน
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
         addBtn.tintColor = .white
-        navigationItem.rightBarButtonItems = [addBtn]
+        navigationItem.leftBarButtonItem = addBtn
+        
+        // เพิ่มไอคอนรูปเฟืองไว้ที่มุมขวาบนเพื่อเปิดหน้า Settings
+        let settingsBtn = UIBarButtonItem(image: UIImage(systemName: "gearshape.fill"), style: .plain, target: self, action: #selector(didTapSettingsButton))
+        settingsBtn.tintColor = .white
+        navigationItem.rightBarButtonItem = settingsBtn
     }
 
     @objc func didTapAddButton() {
         viewModel.showingAddAlert = true
+    }
+
+    @objc func didTapSettingsButton() {
+        let settingsVC = SettingsViewController()
+        navigationController?.pushViewController(settingsVC, animated: true)
     }
     
     func showSuccessNotification(message: String) {
@@ -603,7 +614,7 @@ struct ScriptManagerView: View {
                 }
             }
             
-            // 🟢 Floating Action Button (FAB) ขวาล่าง
+            // 🟢 Floating Action Button (FAB) ขวาล่างสำหรับเปิดแอป (Play)
             Button(action: {
                 guard viewModel.isAppInstalled else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")

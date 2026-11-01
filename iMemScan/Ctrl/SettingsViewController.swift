@@ -193,7 +193,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
     }
 
     func tableView(_ tableView: UITableView, heightForRowAtIndexPath indexPath: IndexPath) -> CGFloat {
-        return (indexPath.section == 0) ? 65.0f : 60.0f
+        return (indexPath.section == 0) ? 65.0 : 60.0
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {

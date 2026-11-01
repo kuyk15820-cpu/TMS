@@ -25,6 +25,6 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (BOOL)removeLocalConfigFromTargetApp:(NSString *)targetBundleID;
 
-end
+@end
 
 NS_ASSUME_NONNULL_END

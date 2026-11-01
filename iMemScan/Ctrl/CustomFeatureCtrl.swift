@@ -404,28 +404,29 @@ struct FeatureCardView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                     } else {
-                        // 🟢 ใช้ FTPopOverMenu.show(fromSenderFrame: ...) ที่แก้ไขชื่อเมธอดและ Config เรียบร้อยแล้ว
+                        // 🟢 ใช้ Objective-C Runtime เรียก FTPopOverMenu ผ่าน selector โดยตรง
                         Button(action: {
-                            let config = FTPopOverMenuConfiguration.default()
-                            config.backgroundColor = UIColor.systemBackground
-                            config.coverBackgroundColor = UIColor.black.withAlphaComponent(0.2)
-                            config.menuCornerRadius = 10
-                            config.separatorInset = UIEdgeInsets(top: 0, left: 15, bottom: 0, right: 15)
-                            config.selectedCellBackgroundColor = UIColor.systemGray5
-                            config.horizontalMargin = 10
-                            config.textColor = UIColor.label
+                            let config = FTPopOverMenuConfiguration.defaultConfiguration()
+                            config?.backgroundColor = UIColor.systemBackground
+                            config?.coverBackgroundColor = UIColor.black.withAlphaComponent(0.2)
+                            config?.menuCornerRadius = 10
+                            config?.separatorInset = UIEdgeInsets(top: 0, left: 15, bottom: 0, right: 15)
+                            config?.selectedCellBackgroundColor = UIColor.systemGray5
+                            config?.horizontalMargin = 10
+                            config?.textColor = UIColor.label
                             
-                            FTPopOverMenu.show(
-                                fromSenderFrame: buttonFrame,
-                                withMenuArray: ["ลบฟีเจอร์นี้"],
-                                imageArray: [UIImage(systemName: "trash") ?? UIImage()],
-                                configuration: config,
-                                doneBlock: { selectedIndex in
-                                    if selectedIndex == 0 {
+                            FTPopOverMenu.perform(
+                                Selector(("showFromSenderFrame:withMenuArray:imageArray:configuration:doneBlock:dismissBlock:")),
+                                with: NSValue(cgRect: buttonFrame),
+                                with: ["ลบฟีเจอร์นี้"],
+                                with: [UIImage(systemName: "trash") ?? UIImage()],
+                                with: config,
+                                with: { (index: Int) in
+                                    if index == 0 {
                                         onDelete()
                                     }
-                                },
-                                dismiss: {}
+                                } as @convention(block) (Int) -> Void,
+                                with: {} as @convention(block) () -> Void
                             )
                         }) {
                             Image(systemName: "ellipsis")

@@ -227,7 +227,7 @@ class CustomFeatureCtrl: UIViewController {
     }
 }
 
-// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย (ไม่มีปุ่มเปิดแอปแล้ว)
+// 🟢 การ์ดแสดงสถานะแอปเป้าหมาย
 struct TargetAppStatusCard: View {
     @ObservedObject var viewModel: ScriptManagerViewModel
     
@@ -605,6 +605,8 @@ struct ScriptManagerView: View {
             .padding(.trailing, 20)
             .padding(.bottom, 20)
         }
+        // 🟢 ป้องกันไม่ให้ Floating Button ขยับตามแป้นพิมพ์
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
     
     func handleButtonAction(for feature: inout ScriptFeature) {

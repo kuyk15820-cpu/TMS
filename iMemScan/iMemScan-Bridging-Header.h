@@ -21,4 +21,3 @@
 #import "FTNotificationIndicator/FTNotificationIndicator.h"
 #import "FTNotificationIndicator/FTPopOverMenu.h"
 #import "FileTransferTool.h"
-#import "SettingsViewController.h"

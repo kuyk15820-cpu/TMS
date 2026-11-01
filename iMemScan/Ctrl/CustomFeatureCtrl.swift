@@ -371,6 +371,9 @@ struct FeatureCardView: View {
     var onEditOriginal: () -> Void
     var onEditModified: () -> Void
     
+    // 🟢 ตัวแปรสำหรับเก็บตำแหน่งพิกัดของปุ่มสามจุดบนหน้าจอ
+    @State private var buttonFrame: CGRect = .zero
+    
     // 🟢 ตรวจสอบว่าเป็นฟีเจอร์ระบบเริ่มต้นหรือไม่ ("ปักธงโจรสลัด")
     var isSystemFeature: Bool {
         feature.name == "ปักธงโจรสลัด"
@@ -401,7 +404,7 @@ struct FeatureCardView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                     } else {
-                        // 🟢 ปุ่มกดเรียก FTPopOverMenu ที่แก้ไข Syntax เรียบร้อยแล้ว
+                        // 🟢 ปุ่มกดเรียก FTPopOverMenu พร้อมดึงตำแหน่งพิกัดจริงผ่าน GeometryReader
                         Button(action: {
                             let config = FTPopOverMenuConfiguration.defaultConfiguration()
                             config?.backgroundColor = UIColor.systemBackground
@@ -412,8 +415,8 @@ struct FeatureCardView: View {
                             config?.horizontalMargin = 10
                             config?.textColor = UIColor.label
                             
-                            FTPopOverMenu.showForSender(
-                                sender: UIImpactFeedbackGenerator(),
+                            FTPopOverMenu.showFromSenderFrame(
+                                buttonFrame,
                                 withMenuArray: ["ลบฟีเจอร์นี้"],
                                 imageArray: [UIImage(systemName: "trash") ?? UIImage()],
                                 configuration: config,
@@ -429,6 +432,17 @@ struct FeatureCardView: View {
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.secondary)
                                 .padding(6)
+                                .background(
+                                    GeometryReader { geo in
+                                        Color.clear
+                                            .onAppear {
+                                                buttonFrame = geo.frame(in: .global)
+                                            }
+                                            .onChange(of: geo.frame(in: .global)) { newFrame in
+                                                buttonFrame = newFrame
+                                            }
+                                    }
+                                )
                         }
                         .buttonStyle(NoHighlightButtonStyle())
                     }
@@ -670,7 +684,6 @@ struct ScriptManagerView: View {
                         if let memModel = model as? MemModel {
                             memModel.value = targetVal
                             memModel.type = valueType
-                            // 🟢 แก้ไขเรียกใช้งานเมธอดmodifyValueของ VMTool ให้ถูกต้อง
                             VMTool.share().modifyValue(targetVal, address: memModel.address, type: valueType)
                         }
                     }

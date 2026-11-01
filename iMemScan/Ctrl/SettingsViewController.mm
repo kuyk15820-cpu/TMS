@@ -21,7 +21,7 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    UIBarButtonItem *backButton = [[UIBarButtonItem alloc] initWithTitle:@"FXTool" 
+    UIBarButtonItem *backButton = [[UIBarButtonItem alloc] initWithTitle:@"TrollMemScan" 
                                                                    style:UIBarButtonItemStylePlain 
                                                                   target:nil 
                                                                   action:nil];

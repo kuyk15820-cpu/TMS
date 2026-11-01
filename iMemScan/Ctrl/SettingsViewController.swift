@@ -49,10 +49,10 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         let bundleID = Bundle.main.bundleIdentifier ?? "com.example.app"
         let version = (infoPlist["CFBundleShortVersionString"] as? String) ?? "1.0"
         
-        // ดึงวันเวลาคอมไพล์จาก Compiler Macro มาตรฐานอัตโนมัติ
-        let compileDate = String(validatingUTF8: __DATE__) ?? ""
-        let compileTime = String(validatingUTF8: __TIME__) ?? ""
-        let buildTimeStr = "\(compileDate) \(compileTime)"
+        // แก้ไขการดึงวันที่และเวลาคอมไพล์ใน Swift
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
+        let buildTimeStr = dateFormatter.string(from: Date())
         
         let fullVersion = "v\(version) (\(buildTimeStr))"
         

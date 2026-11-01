@@ -73,6 +73,9 @@ class ScriptManagerViewModel: ObservableObject {
     @Published var isAppRunning: Bool = false
     @Published var isAppInstalled: Bool = true
     
+    // 🟢 สถานะสวิตช์ระบบไฟล์ (สร้าง/ลบ localConfig.json)
+    @Published var isFileFeatureEnabled: Bool = false
+    
     var scrollToProxy: ScrollViewProxy?
     weak var parentVC: CustomFeatureCtrl?
     
@@ -208,7 +211,7 @@ class CustomFeatureCtrl: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        // เอา refreshTargetStatus ออกแล้ว เพื่อป้องกันอาการค้างเวลากดย้อนกลับ
+        viewModel.refreshTargetStatus()
     }
     
     deinit {
@@ -216,24 +219,13 @@ class CustomFeatureCtrl: UIViewController {
     }
 
     func updateNavigationButton() {
-        // เพิ่มปุ่ม + ไว้ที่มุมซ้ายบน
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(didTapAddButton))
         addBtn.tintColor = .white
-        navigationItem.leftBarButtonItem = addBtn
-        
-        // เพิ่มไอคอนรูปเฟืองไว้ที่มุมขวาบนเพื่อเปิดหน้า Settings
-        let settingsBtn = UIBarButtonItem(image: UIImage(systemName: "gear"), style: .plain, target: self, action: #selector(didTapSettingsButton))
-        settingsBtn.tintColor = .white
-        navigationItem.rightBarButtonItem = settingsBtn
+        navigationItem.rightBarButtonItems = [addBtn]
     }
 
     @objc func didTapAddButton() {
         viewModel.showingAddAlert = true
-    }
-
-    @objc func didTapSettingsButton() {
-        let settingsVC = SettingsViewController()
-        navigationController?.pushViewController(settingsVC, animated: true)
     }
     
     func showSuccessNotification(message: String) {
@@ -334,6 +326,64 @@ struct TargetAppStatusCard: View {
         .onAppear {
             viewModel.refreshTargetStatus()
         }
+    }
+}
+
+// 🟢 การ์ดใหม่: ระบบไฟล์แอป (เปิด-ปิดด้วย Switch)
+struct FileTransferCardView: View {
+    @ObservedObject var viewModel: ScriptManagerViewModel
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ระบบไฟล์แอป (localConfig)")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text("สร้างหรือลบไฟล์ config อัตโนมัติ")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Toggle("", isOn: Binding(
+                get: { viewModel.isFileFeatureEnabled },
+                set: { newValue in
+                    guard viewModel.isAppInstalled else {
+                        viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")
+                        return
+                    }
+                    
+                    if newValue {
+                        let success = FileTransferTool.createLocalConfig(inTargetApp: viewModel.targetApp.bundleID)
+                        if success {
+                            viewModel.isFileFeatureEnabled = true
+                            viewModel.parentVC?.showSuccessNotification(message: "สร้างไฟล์ config สำเร็จ")
+                        } else {
+                            viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถสร้างไฟล์ config ได้")
+                        }
+                    } else {
+                        let success = FileTransferTool.removeLocalConfig(fromTargetApp: viewModel.targetApp.bundleID)
+                        if success {
+                            viewModel.isFileFeatureEnabled = false
+                            viewModel.parentVC?.showSuccessNotification(message: "ลบไฟล์ config สำเร็จ")
+                        } else {
+                            viewModel.parentVC?.showErrorNotification(message: "ไม่สามารถลบไฟล์ config ได้")
+                        }
+                    }
+                }
+            ))
+            .labelsHidden()
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+        )
+        .padding(.horizontal)
     }
 }
 
@@ -536,6 +586,9 @@ struct ScriptManagerView: View {
                         TargetAppStatusCard(viewModel: viewModel)
                             .padding(.top, 8)
                         
+                        // 🟢 เพิ่มการ์ดระบบไฟล์แอปต่อจากการ์ดสถานะ
+                        FileTransferCardView(viewModel: viewModel)
+                        
                         LazyVStack(spacing: 16) {
                             ForEach($viewModel.features) { $feature in
                                 FeatureCardView(
@@ -582,7 +635,7 @@ struct ScriptManagerView: View {
                 }
                 .onAppear {
                     viewModel.scrollToProxy = proxy
-                    // เอาการรีเฟรชตอน onAppear ออก เพื่อไม่ให้รันซ้ำซ้อนตอนกดย้อนกลับ
+                    viewModel.refreshTargetStatus()
                 }
                 .alert("เพิ่มฟีเจอร์ใหม่", isPresented: $viewModel.showingAddAlert) {
                     TextField("ชื่อฟีเจอร์ เช่น ?", text: $newName)
@@ -614,7 +667,7 @@ struct ScriptManagerView: View {
                 }
             }
             
-            // 🟢 Floating Action Button (FAB) ขวาล่างสำหรับเปิดแอป (Play)
+            // 🟢 Floating Action Button (FAB) ขวาล่าง
             Button(action: {
                 guard viewModel.isAppInstalled else {
                     viewModel.parentVC?.showErrorNotification(message: "ไม่ได้ติดตั้งแอปพลิเคชันนี้บนเครื่อง")

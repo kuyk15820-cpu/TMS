@@ -19,3 +19,4 @@
 #import "AppController.h"
 #import "NSTask.h"
 #import "FTNotificationIndicator/FTNotificationIndicator.h"
+#import "FTNotificationIndicator/FTPopOverMenu.h"

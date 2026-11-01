@@ -18,6 +18,13 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (BOOL)createLocalConfigInTargetApp:(NSString *)targetBundleID;
 
-@end
+/**
+ * ลบไฟล์ localConfig.json ออกจากโฟลเดอร์ Documents ของแอปเป้าหมาย (สำหรับใช้กับ Switch เปิด-ปิด)
+ * @param targetBundleID Bundle ID ของแอปเป้าหมาย (เช่น "com.dts.freefireth")
+ * @return บูลินบอกสถานะว่าลบไฟล์สำเร็จหรือไม่
+ */
++ (BOOL)removeLocalConfigFromTargetApp:(NSString *)targetBundleID;
+
+end
 
 NS_ASSUME_NONNULL_END

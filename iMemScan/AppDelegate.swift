@@ -18,8 +18,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // 用于保存后台下载的completionHandler
     var backgroundSessionCompletionHandler: (() -> Void)?
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        
+        // 🟢 1. ตั้งค่า Package Token ของโปรเจกต์นี้
+        APIClient.sharedAPIClient.setToken("ใส่_Package_Token_ของคุณตรงนี้")
+        
+        // 2. เรียกใช้งานระบบ License (ถ้าผ่าน จะรันโค้ดใน block นี้ ถ้าไม่ผ่านจะจัดการหน้าต่างกรอกคีย์ให้อัตโนมัติ)
+        APIClient.sharedAPIClient.paid {
+            print("License Active & Valid!")
+        }
         
         Audio()
         overrideUserInterfaceStyle() // 🟢 บังคับใช้ Dark Mode เท่านั้น

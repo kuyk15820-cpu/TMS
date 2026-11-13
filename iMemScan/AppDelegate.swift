@@ -22,7 +22,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Override point for customization after application launch.
         
         // 🟢 1. ตั้งค่า Package Token ของโปรเจกต์นี้
-        APIClient.sharedAPIClient.setToken("ใส่_Package_Token_ของคุณตรงนี้")
+        APIClient.sharedAPIClient.setToken("Q-cde28f14c010e5d6102477c3fb8d629841bd42f92bc407bb45c8a6a31ca07b")
         
         // 2. เรียกใช้งานระบบ License (ถ้าผ่าน จะรันโค้ดใน block นี้ ถ้าไม่ผ่านจะจัดการหน้าต่างกรอกคีย์ให้อัตโนมัติ)
         APIClient.sharedAPIClient.paid {

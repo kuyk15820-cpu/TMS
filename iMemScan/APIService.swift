@@ -6,35 +6,32 @@ public class APIService {
     
     private init() {}
     
-    // ฟังก์ชันกลางสำหรับยิง Request แบบ POST พร้อมเข้ารหัส Payload ผ่าน EncryptionManager
-    private func postEncryptedRequest(parameters: [String: Any], completion: @escaping (Result<[String: Any], Error>) -> Void) {
-        guard let url = URL(string: APIConfiguration.defaultBaseURL) else {
+    // ยิง Init เพื่อเช็กสถานะแพ็กเกจและ Maintenance
+    public func fetchInit(token: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        let urlString = "\(APIConfiguration.defaultBaseURL)?action=init&token=\(token)"
+        requestJSON(urlString: urlString, completion: completion)
+    }
+    
+    // ยิง Check (กรณีใช้ Access Token ตรวจสอบเซสชันอัตโนมัติ)
+    public func checkWithAccessToken(token: String, accessToken: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        let urlString = "\(APIConfiguration.defaultBaseURL)?action=check&token=\(token)&access_token=\(accessToken)"
+        requestJSON(urlString: urlString, completion: completion)
+    }
+    
+    // ยิง Check (กรณีผู้ใช้กรอก Key ใหม่พร้อม UDID)
+    public func checkWithKey(token: String, key: String, uuid: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        let urlString = "\(APIConfiguration.defaultBaseURL)?action=check&token=\(token)&key=\(key)&uuid=\(uuid)"
+        requestJSON(urlString: urlString, completion: completion)
+    }
+    
+    private func requestJSON(urlString: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        guard let url = URL(string: urlString) else {
             let error = NSError(domain: "APIServiceError", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
             completion(.failure(error))
             return
         }
         
-        // 1. เข้ารหัสพารามิเตอร์ทั้งหมดด้วย EncryptionManager
-        guard let encryptedPayload = EncryptionManager.shared.encrypt(parameters: parameters) else {
-            let error = NSError(domain: "APIServiceError", code: -4, userInfo: [NSLocalizedDescriptionKey: "Encryption failed"])
-            completion(.failure(error))
-            return
-        }
-        
-        // 2. สร้าง Body ในรูปแบบ JSON: {"payload": "..."}
-        let bodyDictionary: [String: String] = ["payload": encryptedPayload]
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: bodyDictionary, options: []) else {
-            let error = NSError(domain: "APIServiceError", code: -5, userInfo: [NSLocalizedDescriptionKey: "JSON Serialization failed"])
-            completion(.failure(error))
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = httpBody
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: url) { data, response, error in
             if let error = error {
                 completion(.failure(error))
                 return
@@ -57,35 +54,5 @@ public class APIService {
                 completion(.failure(error))
             }
         }.resume()
-    }
-    
-    // ยิง Init เพื่อเช็กสถานะแพ็กเกจและ Maintenance (ส่งแบบ POST + Encrypted Payload)
-    public func fetchInit(token: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
-        let params: [String: Any] = [
-            "action": "init",
-            "token": token
-        ]
-        postEncryptedRequest(parameters: params, completion: completion)
-    }
-    
-    // ยิง Check (กรณีใช้ Access Token ตรวจสอบเซสชันอัตโนมัติ)
-    public func checkWithAccessToken(token: String, accessToken: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
-        let params: [String: Any] = [
-            "action": "check",
-            "token": token,
-            "access_token": accessToken
-        ]
-        postEncryptedRequest(parameters: params, completion: completion)
-    }
-    
-    // ยิง Check (กรณีผู้ใช้กรอก Key ใหม่พร้อม UDID)
-    public func checkWithKey(token: String, key: String, uuid: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
-        let params: [String: Any] = [
-            "action": "check",
-            "token": token,
-            "key": key,
-            "uuid": uuid
-        ]
-        postEncryptedRequest(parameters: params, completion: completion)
     }
 }

@@ -291,6 +291,6 @@ jobs:
           for asset in $(gh release view nightly --json assets -q '.assets[].name'); do
             echo "Deleting old asset: $asset"
             gh release delete-asset nightly "$asset" -y || true
-          end
+          done
 
           gh release upload nightly build/*.tipa --clobber

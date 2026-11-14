@@ -1,1 +1,38 @@
-1
+// EncryptionManager.swift
+import Foundation
+import CryptoSwift
+
+public class EncryptionManager {
+    public static let shared = EncryptionManager()
+    
+    // ซ่อน Secret Key (32 ไบต์) และ IV (16 ไบต์) เป็น Byte Array เพื่อป้องกัน IDA Pro ส่องเจอ String ตรงๆ
+    private let secretKeyBytes: [UInt8] = [
+        0x59, 0x4F, 0x55, 0x52, 0x5F, 0x53, 0x55, 0x50, 
+        0x45, 0x52, 0x5F, 0x53, 0x45, 0x43, 0x55, 0x52, 
+        0x45, 0x5F, 0x41, 0x50, 0x50, 0x5F, 0x53, 0x45, 
+        0x43, 0x52, 0x45, 0x54, 0x5F, 0x32, 0x30, 0x32
+    ] // แปลงมาจาก "YOUR_SUPER_SECURE_APP_SECRET_KEY_2026"
+    
+    private let ivBytes: [UInt8] = [
+        0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 
+        0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36
+    ] // แปลงมาจาก "1234567890123456"
+    
+    private init() {}
+    
+    // เข้ารหัสพารามิเตอร์ทั้งหมดเป็น Base64 String
+    public func encrypt(parameters: [String: Any]) -> String? {
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: parameters, options: [])
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else { return nil }
+            
+            let aes = try AES(key: secretKeyBytes, blockMode: CBC(iv: ivBytes), padding: .pkcs7)
+            let encryptedBytes = try aes.encrypt(Array(jsonString.utf8))
+            
+            return Data(encryptedBytes).base64EncodedString()
+        } catch {
+            print("Encryption Error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+}

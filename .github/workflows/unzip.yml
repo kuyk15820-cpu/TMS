@@ -94,7 +94,7 @@ jobs:
           puts "Successfully updated project build settings!"
           EOF
 
-      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติเฉพาะไฟล์ใหม่ พร้อมเพิ่ม Swift Package (ActivityIndicatorView)
+      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติเฉพาะไฟล์ใหม่ พร้อมเพิ่ม Swift Packages (ActivityIndicatorView และ CryptoSwift)
       - name: sync swift files and packages to xcodeproj
         run: |
           gem install xcodeproj
@@ -120,7 +120,7 @@ jobs:
             end
           end
 
-          # 🟢 สั่งเพิ่ม Swift Package (ActivityIndicatorView)
+          # 🟢 สั่งเพิ่ม Swift Package 1: ActivityIndicatorView
           aiv_url = 'https://github.com/exyte/ActivityIndicatorView.git'
           aiv_ref = project.root_object.package_references.find { |p| p.repositoryURL == aiv_url }
           unless aiv_ref
@@ -135,6 +135,23 @@ jobs:
             
             target.package_product_dependencies << aiv_product_dependency
             puts 'Added Swift Package: ActivityIndicatorView'
+          end
+
+          # 🟢 สั่งเพิ่ม Swift Package 2: CryptoSwift (v1.10.0 ตามที่คุณต้องการ)
+          cs_url = 'https://github.com/krzyzanowskim/CryptoSwift.git'
+          cs_ref = project.root_object.package_references.find { |p| p.repositoryURL == cs_url }
+          unless cs_ref
+            cs_ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+            cs_ref.repositoryURL = cs_url
+            cs_ref.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => '1.10.0' }
+            project.root_object.package_references << cs_ref
+            
+            cs_product_dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+            cs_product_dependency.product_name = 'CryptoSwift'
+            cs_product_dependency.package = cs_ref
+            
+            target.package_product_dependencies << cs_product_dependency
+            puts 'Added Swift Package: CryptoSwift'
           end
           
           # ดึงรายชื่อไฟล์ที่มีอยู่ในโปรเจกต์และ Build Phases อยู่แล้วเพื่อข้ามการแอดซ้ำ
@@ -274,6 +291,6 @@ jobs:
           for asset in $(gh release view nightly --json assets -q '.assets[].name'); do
             echo "Deleting old asset: $asset"
             gh release delete-asset nightly "$asset" -y || true
-          done
+          end
 
           gh release upload nightly build/*.tipa --clobber

@@ -12,7 +12,6 @@ public class APIClient: NSObject {
     private var contactLink: String = ""
     private var isMaintenance: Bool = false
     private var isValidLicensed: Bool = false
-    private var isProcessing: Bool = false // 🟢 ป้องกันการยิงซ้ำซ้อน (Duplicate Requests)
     
     private var expiryDateCache: String = ""
     private var daysLeftCache: Int = 0
@@ -26,7 +25,9 @@ public class APIClient: NSObject {
     
     public func setToken(_ token: String) {
         self.packageToken = token
-        // ❌ เอาการเรียก startProcess() ออกจากตรงนี้ เพื่อไม่ให้ยิงเบิ้ลกับฟังก์ชัน paid() ตอนเปิดแอป
+        if !self.packageToken.isEmpty {
+            self.startProcess()
+        }
     }
     
     public func setLanguage(_ language: String) {
@@ -39,29 +40,27 @@ public class APIClient: NSObject {
         if self.isValidLicensed {
             self.onPaidExecuteBlock?()
         } else {
-            guard !self.packageToken.isEmpty else {
+            if !self.packageToken.isEmpty {
+                self.startProcess()
+            } else {
                 self.showKeyInputPrompt()
-                return
             }
-            self.startProcess()
         }
     }
     
     public func showKeyInputPrompt() {
-        DispatchQueue.main.async {
-            LicenseAlertManager.shared.showKeyInputAlert(
-                contactLink: self.contactLink,
-                loginHandler: { key in
-                    self.checkKey(key, isAuto: false)
-                },
-                contactHandler: {
-                    if !self.contactLink.isEmpty, let url = URL(string: self.contactLink) {
-                        UIApplication.shared.open(url)
-                    }
-                    self.showKeyInputPrompt()
+        LicenseAlertManager.shared.showKeyInputAlert(
+            contactLink: self.contactLink,
+            loginHandler: { key in
+                self.checkKey(key, isAuto: false)
+            },
+            contactHandler: {
+                if !self.contactLink.isEmpty, let url = URL(string: self.contactLink) {
+                    UIApplication.shared.open(url)
                 }
-            )
-        }
+                self.showKeyInputPrompt()
+            }
+        )
     }
     
     public func isLicenseValid() -> Bool {
@@ -116,11 +115,9 @@ public class APIClient: NSObject {
     // MARK: - Process Flows
     
     private func startProcess() {
-        guard !self.packageToken.isEmpty, !self.isProcessing else { return }
-        self.isProcessing = true
+        guard !self.packageToken.isEmpty else { return }
         
         APIService.shared.fetchInit(token: self.packageToken) { result in
-            self.isProcessing = false
             switch result {
             case .success(let json):
                 if let forceExit = json["force_exit"] as? Bool, forceExit {
@@ -141,7 +138,6 @@ public class APIClient: NSObject {
                     self.forceExitApp(reason: msg)
                 }
             case .failure(let error):
-                self.isProcessing = false
                 self.forceExitApp(reason: "Không thể kết nối đến server: \(error.localizedDescription)")
             }
         }
@@ -163,22 +159,14 @@ public class APIClient: NSObject {
     }
     
     private func checkWithAccessToken(_ accessToken: String) {
-        guard !self.isProcessing else { return }
-        self.isProcessing = true
-        
         APIService.shared.checkWithAccessToken(token: self.packageToken, accessToken: accessToken) { result in
-            self.isProcessing = false
             self.handleNetworkResult(result, key: "", isAuto: true, isAccessCheck: true)
         }
     }
     
     private func checkKey(_ key: String, isAuto: Bool) {
-        guard !self.isProcessing else { return }
-        self.isProcessing = true
-        
         let uuid = self.getUDID()
         APIService.shared.checkWithKey(token: self.packageToken, key: key, uuid: uuid) { result in
-            self.isProcessing = false
             self.handleNetworkResult(result, key: key, isAuto: isAuto, isAccessCheck: false)
         }
     }
@@ -237,7 +225,6 @@ public class APIClient: NSObject {
             }
             
         case .failure(let error):
-            self.isProcessing = false
             LicenseAlertManager.shared.showErrorNotification(title: "Lỗi kết nối", message: error.localizedDescription)
         }
     }

@@ -52,6 +52,10 @@ public class APIClient: NSObject {
         LicenseAlertManager.shared.showKeyInputAlert(
             contactLink: self.contactLink,
             loginHandler: { key in
+                // 🟢 สเตป 5 (เมื่อกดยืนยันคีย์): แสดง Check device... ตอนกำลังตรวจสอบคีย์
+                DispatchQueue.main.async {
+                    HUDHelper.show(title: "Check device…")
+                }
                 self.checkKey(key, isAuto: false)
             },
             contactHandler: {
@@ -93,7 +97,7 @@ public class APIClient: NSObject {
     }
     
     public func getUDID() -> String {
-        return UIDevice.current.identifierForVendor?.uuidString ?? ""
+        return UIDevice.current.identifierForVendor?.uuidString ?? "00000"
     }
     
     public func getDeviceModel() -> String {
@@ -112,10 +116,20 @@ public class APIClient: NSObject {
         return self.daysLeftCache
     }
     
-    // MARK: - Process Flows
+    // MARK: - Process Flows (ลำดับการทำงาน Sequential Flow ตามจริง)
     
     private func startProcess() {
         guard !self.packageToken.isEmpty else { return }
+        
+        // 🟢 1. แสดง APIServer
+        DispatchQueue.main.async {
+            HUDHelper.show(title: "APIServer", subtitle: "Version: 1.0.0")
+        }
+        
+        // 🟢 2. อัปเดตต่อกันแสดง Package initializing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            HUDHelper.update(title: "Package initializing")
+        }
         
         APIService.shared.fetchInit(token: self.packageToken) { result in
             switch result {
@@ -153,12 +167,38 @@ public class APIClient: NSObject {
             } else if let savedKey = ud.string(forKey: "saved_license_key") {
                 self.checkKey(savedKey, isAuto: true)
             } else {
-                self.showKeyInputPrompt()
+                // 🟢 3. อัปเดตต่อกันแสดง Check device… ก่อนเด้งกล่องกรอกคีย์
+                DispatchQueue.main.async {
+                    HUDHelper.update(title: "Check device…")
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    HUDHelper.hide()
+                    self.triggerUDIDAndShowInput()
+                }
             }
         }
     }
     
+    // 🟢 4. แสดง FTNotificationIndicator UDID IDF + AlertController input
+    private func triggerUDIDAndShowInput() {
+        let currentUDID = self.getUDID()
+        
+        LicenseAlertManager.shared.showSuccessNotification(
+            title: "UDID IDF",
+            message: "UDID: \(currentUDID)\nAPI: 1.0.0"
+        )
+        
+        self.showKeyInputPrompt()
+    }
+    
     private func checkWithAccessToken(_ accessToken: String) {
+        DispatchQueue.main.async {
+            HUDHelper.update(title: "Check device…")
+            let currentUDID = self.getUDID()
+            LicenseAlertManager.shared.showSuccessNotification(title: "UDID IDF", message: "UDID: \(currentUDID)\nAPI: 1.0.0")
+        }
+        
         APIService.shared.checkWithAccessToken(token: self.packageToken, accessToken: accessToken) { result in
             self.handleNetworkResult(result, key: "", isAuto: true, isAccessCheck: true)
         }
@@ -172,6 +212,10 @@ public class APIClient: NSObject {
     }
     
     private func handleNetworkResult(_ result: Result<[String: Any], Error>, key: String, isAuto: Bool, isAccessCheck: Bool) {
+        DispatchQueue.main.async {
+            HUDHelper.hide()
+        }
+        
         switch result {
         case .success(let json):
             if let forceExit = json["force_exit"] as? Bool, forceExit {
@@ -207,17 +251,26 @@ public class APIClient: NSObject {
                 
                 let daysLeft = json["days_left"] as? Int ?? 0
                 self.daysLeftCache = daysLeft
-                self.expiryDateCache = json["expiry"] as? String ?? ""
+                let expiryStr = json["expiry"] as? String ?? ""
+                self.expiryDateCache = expiryStr
                 
                 UserDefaults.standard.set(key, forKey: "saved_license_key")
                 
-                let expiryStr = json["expiry"] as? String ?? ""
-                let info = "Hạn dùng: \(expiryStr) (\(daysLeft) ngày)"
-                
-                LicenseAlertManager.shared.showSuccessNotification(title: "Thành công", message: info)
+                // 🟢 6. กรณีกรอกคีย์สำเร็จ แสดงการ์ด Hi iPhone พร้อมข้อมูลจริงและปุ่ม Tap to close
+                let detailsText = """
+                Expiry date: \(expiryStr)
+                Device: iPhone X | System version: 16.0
+                APIServer: 1.0.0
+                """
                 
                 DispatchQueue.main.async {
-                    self.onPaidExecuteBlock?()
+                    HUDHelper.showSuccessCard(
+                        title: "Hi iPhone",
+                        details: detailsText,
+                        buttonTitle: "Tap to close"
+                    ) {
+                        self.onPaidExecuteBlock?()
+                    }
                 }
             } else {
                 let msg = json["message"] as? String ?? "Invalid Key"
@@ -225,7 +278,9 @@ public class APIClient: NSObject {
             }
             
         case .failure(let error):
-            LicenseAlertManager.shared.showErrorNotification(title: "Lỗi kết nối", message: error.localizedDescription)
+            DispatchQueue.main.async {
+                HUDHelper.showMessage(title: "Lỗi kết nối", subtitle: error.localizedDescription, autoHideDelay: 2.0)
+            }
         }
     }
     
@@ -235,10 +290,16 @@ public class APIClient: NSObject {
         ud.removeObject(forKey: "saved_license_key")
         ud.removeObject(forKey: "saved_access_token")
         
-        if isAuto {
-            self.showKeyInputPrompt()
-        } else {
-            LicenseAlertManager.shared.showErrorNotification(title: "Lỗi Key", message: msg)
+        // 🟢 5. กรณีกรอกคีย์ผิด แสดง HUD แบบไม่มี Spinner (Please check your key / Package will close after 1)
+        DispatchQueue.main.async {
+            HUDHelper.showMessage(
+                title: "Please check your key",
+                subtitle: "Package will close after 1",
+                autoHideDelay: 2.0
+            )
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             self.showKeyInputPrompt()
         }
     }

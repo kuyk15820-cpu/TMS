@@ -94,7 +94,7 @@ jobs:
           puts "Successfully updated project build settings!"
           EOF
 
-      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติเฉพาะไฟล์ใหม่ พร้อมเพิ่ม Swift Packages (ActivityIndicatorView และ CryptoSwift)
+      # 🟢 ระบบเพิ่มไฟล์อัตโนมัติเฉพาะไฟล์ใหม่ พร้อมเพิ่ม Swift Packages (ActivityIndicatorView, CryptoSwift และ MBProgressHUD)
       - name: sync swift files and packages to xcodeproj
         run: |
           gem install xcodeproj
@@ -137,7 +137,7 @@ jobs:
             puts 'Added Swift Package: ActivityIndicatorView'
           end
 
-          # 🟢 สั่งเพิ่ม Swift Package 2: CryptoSwift (v1.10.0 ตามที่คุณต้องการ)
+          # 🟢 สั่งเพิ่ม Swift Package 2: CryptoSwift
           cs_url = 'https://github.com/krzyzanowskim/CryptoSwift.git'
           cs_ref = project.root_object.package_references.find { |p| p.repositoryURL == cs_url }
           unless cs_ref
@@ -152,6 +152,23 @@ jobs:
             
             target.package_product_dependencies << cs_product_dependency
             puts 'Added Swift Package: CryptoSwift'
+          end
+
+          # 🟢 สั่งเพิ่ม Swift Package 3: MBProgressHUD (ใหม่)
+          mb_url = 'https://github.com/jdg/MBProgressHUD.git'
+          mb_ref = project.root_object.package_references.find { |p| p.repositoryURL == mb_url }
+          unless mb_ref
+            mb_ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+            mb_ref.repositoryURL = mb_url
+            mb_ref.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => '1.2.0' }
+            project.root_object.package_references << mb_ref
+            
+            mb_product_dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+            mb_product_dependency.product_name = 'MBProgressHUD'
+            mb_product_dependency.package = mb_ref
+            
+            target.package_product_dependencies << mb_product_dependency
+            puts 'Added Swift Package: MBProgressHUD'
           end
           
           # ดึงรายชื่อไฟล์ที่มีอยู่ในโปรเจกต์และ Build Phases อยู่แล้วเพื่อข้ามการแอดซ้ำ

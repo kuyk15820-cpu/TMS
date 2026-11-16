@@ -97,7 +97,7 @@ struct HUDHelper {
         // ใช้แนวทางเดียวกับ customViewExample ใน Demo (ไม่กำหนด frame ขนาดบังคับ ปล่อยให้ระบบจัดการตามธรรมชาติ)
         let image = UIImage(systemName: "checkmark")?.withRenderingMode(.alwaysTemplate)
         hud.customView = UIImageView(image: image)
-        hud.square = true
+        hud.isSquare = true
         
         hud.backgroundView.style = .solidColor
         hud.backgroundView.color = UIColor(white: 0.0, alpha: 0.5)

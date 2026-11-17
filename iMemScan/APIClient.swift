@@ -17,6 +17,12 @@ public class APIClient: NSObject {
     private var daysLeftCache: Int = 0
     private var onPaidExecuteBlock: (() -> Void)? = nil
     
+    // 🟢 ตัวแปรเก็บค่า UDID จริง 40 หลักที่ได้จาก Safari Profile
+    private var cachedRealUDID: String {
+        get { UserDefaults.standard.string(forKey: "saved_real_udid") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "saved_real_udid") }
+    }
+    
     private override init() {
         super.init()
     }
@@ -48,7 +54,16 @@ public class APIClient: NSObject {
         }
     }
     
+    // 🟢 ตรวจสอบว่ามี UDID จริงหรือยัง ถ้ายังให้เริ่มกระบวนการขอโปรไฟล์ UDID ก่อน
     public func showKeyInputPrompt() {
+        if self.cachedRealUDID.isEmpty {
+            self.startUDIDEnrollmentFlow()
+        } else {
+            self.presentKeyInputAlert()
+        }
+    }
+    
+    private func presentKeyInputAlert() {
         LicenseAlertManager.shared.showKeyInputAlert(
             contactLink: self.contactLink,
             loginHandler: { key in
@@ -93,6 +108,11 @@ public class APIClient: NSObject {
     }
     
     public func getUDID() -> String {
+        // คืนค่า UDID จริง หรือถ้ายังไม่มีให้ fallback ไปใช้ IDFV ชั่วคราว
+        let realUDID = self.cachedRealUDID
+        if !realUDID.isEmpty {
+            return realUDID
+        }
         return UIDevice.current.identifierForVendor?.uuidString ?? ""
     }
     
@@ -110,6 +130,80 @@ public class APIClient: NSObject {
     
     public func getDaysLeft() -> Int {
         return self.daysLeftCache
+    }
+    
+    // MARK: - UDID Enrollment Flow (เพิ่มใหม่)
+    
+    private func startUDIDEnrollmentFlow() {
+        // แสดง HUD กำลังเตรียมระบบดึง UDID
+        DispatchQueue.main.async {
+            // แจ้งเตือนผู้ใช้หรือแสดง Alert ก่อนเด้งไป Safari
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+                  let rootVC = window.rootViewController else { return }
+            
+            let alert = UIAlertController(title: "ลงทะเบียนอุปกรณ์", message: "ระบบจำเป็นต้องติดตั้งโปรไฟล์เพื่อความปลอดภัยและผูก UDID ของเครื่องคุณ", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "ดำเนินการต่อ", style: .default) { _ in
+                self.requestAndOpenSafariProfile()
+            })
+            alert.addAction(UIAlertAction(title: "ยกเลิก", style: .cancel))
+            rootVC.present(alert, animated: true)
+        }
+    }
+    
+    private func requestAndOpenSafariProfile() {
+        // ใช้โปรเจกต์ ID สมมติ หรือดึงจาก Token (ในที่นี้ส่ง projectId = 1 หรือแปลงจาก Token ตามโครงสร้างของคุณ)
+        APIService.shared.requestUDIDSession(projectId: 1) { result in
+            switch result {
+            case .success(let json):
+                if let status = json["status"] as? Bool, status,
+                   let profileURLStr = json["profile_url"] as? String,
+                   let sessionToken = json["session_token"] as? String,
+                   let url = URL(string: profileURLStr) {
+                    
+                    DispatchQueue.main.async {
+                        // เปิด Safari ไปติดตั้ง Profile
+                        UIApplication.shared.open(url, options: [:]) { success in
+                            if success {
+                                // เริ่มต้นวนลูปเช็กว่าผู้ใช้ติดตั้งเสร็จหรือยัง
+                                self.pollUDIDStatus(sessionToken: sessionToken)
+                            }
+                        }
+                    }
+                }
+            case .failure(let error):
+                print("Failed to request UDID session: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func pollUDIDStatus(sessionToken: String) {
+        // สร้าง Timer คอยยิงเช็กทุกๆ 2 วินาที
+        var timer: Timer?
+        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { t in
+            APIService.shared.checkUDIDStatus(sessionToken: sessionToken) { result in
+                switch result {
+                case .success(let json):
+                    if let status = json["status"] as? Bool, status,
+                       let udid = json["udid"] as? String, !udid.isEmpty {
+                        // หยุด Timer เมื่อได้ UDID แล้ว
+                        t.invalidate()
+                        
+                        // บันทึก UDID จริงลงเครื่อง
+                        self.cachedRealUDID = udid
+                        
+                        DispatchQueue.main.async {
+                            // แสดงหน้าต่างกรอก Key ต่อทันทีอย่างไร้รอยต่อ
+                            self.presentKeyInputAlert()
+                        }
+                    }
+                case .failure:
+                    break // กำลังรอผู้ใช้ติดตั้ง ให้เช็กไปเรื่อยๆ
+                }
+            }
+        }
+        // ป้องกัน Timer ค้าง ให้รันบน RunLoop
+        RunLoop.main.add(timer!, forMode: .common)
     }
     
     // MARK: - Process Flows
@@ -165,7 +259,7 @@ public class APIClient: NSObject {
     }
     
     private func checkKey(_ key: String, isAuto: Bool) {
-        let uuid = self.getUDID()
+        let uuid = self.getUDID() // จะดึงค่า UDID 40 หลักจริงที่ได้จาก Safari Profile ไปใช้
         APIService.shared.checkWithKey(token: self.packageToken, key: key, uuid: uuid) { result in
             self.handleNetworkResult(result, key: key, isAuto: isAuto, isAccessCheck: false)
         }

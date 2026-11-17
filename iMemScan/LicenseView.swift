@@ -2,6 +2,69 @@
 import UIKit
 import SwiftUI
 
+// 🟢 SwiftUI View สำหรับหน้าต่างกรอก Key
+struct KeyInputView: View {
+    @Binding var isPresented: Bool
+    var contactLink: String
+    var onLogin: (String) -> Void
+    var onContact: () -> Void
+    
+    @State private var keyInput: String = ""
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                Text("Nhập Key")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text("Vui lòng nhập key để kích hoạt.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                TextField("License Key", text: $keyInput)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .multilineTextAlignment(.center)
+                
+                HStack(spacing: 12) {
+                    if !contactLink.isEmpty {
+                        Button("Contact") {
+                            onContact()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.secondary.opacity(0.2))
+                        .cornerRadius(8)
+                    }
+                    
+                    Button("Login") {
+                        if !keyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            onLogin(keyInput)
+                            isPresented = false
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+            }
+            .padding(20)
+            .background(Color(.systemBackground))
+            .cornerRadius(16)
+            .shadow(radius: 10)
+            .padding(.horizontal, 40)
+        }
+    }
+}
+
 // 🟢 SwiftUI View สำหรับหน้าต่าง Maintenance (ปิดปรับปรุง)
 struct MaintenanceView: View {
     var contactLink: String
@@ -51,7 +114,7 @@ struct MaintenanceView: View {
     }
 }
 
-// 🟢 Manager สำหรับจัดการการแสดงผล FTNotificationIndicator และ UIAlertController
+// 🟢 Manager สำหรับเรียกแสดงผลผ่าน FTNotificationIndicator และ SwiftUI HostingController
 public class LicenseAlertManager {
     public static let shared = LicenseAlertManager()
     
@@ -69,7 +132,7 @@ public class LicenseAlertManager {
         return topVC
     }
     
-    // แสดง Notification สำเร็จด้วย FTNotificationIndicator (ใช้แสดง UDID IDF)
+    // แสดง Notification สำเร็จด้วย FTNotificationIndicator
     public func showSuccessNotification(title: String, message: String) {
         DispatchQueue.main.async {
             let icon = UIImage(systemName: "checkmark.circle")?.withTintColor(.white, renderingMode: .alwaysOriginal)
@@ -87,55 +150,31 @@ public class LicenseAlertManager {
         }
     }
     
-    // 🟢 แสดงหน้าต่างกรอก Key ด้วย UIKit UIAlertController (พร้อมช่อง Input TextField)
+    // แสดงหน้าต่าง SwiftUI กรอก Key
     public func showKeyInputAlert(contactLink: String, loginHandler: @escaping (String) -> Void, contactHandler: @escaping () -> Void) {
         DispatchQueue.main.async {
             guard let rootVC = self.getTopViewController() else { return }
             
-            let alert = UIAlertController(
-                title: "Nhập Key",
-                message: "Vui lòng nhập key để kích hoạt.",
-                preferredStyle: .alert
-            )
+            var hostingController: UIHostingController<KeyInputView>?
+            let view = KeyInputView(isPresented: Binding(
+                get: { true },
+                set: { if !$0 { hostingController?.view.removeFromSuperview() } }
+            ), contactLink: contactLink, onLogin: { key in
+                loginHandler(key)
+                hostingController?.view.removeFromSuperview()
+            }, onContact: {
+                contactHandler()
+            })
             
-            // เพิ่ม TextField สำหรับกรอก License Key
-            alert.addTextField { textField in
-                textField.placeholder = "License Key"
-                textField.autocapitalizationType = .none
-                textField.isSecureTextEntry = false
-                textField.clearButtonMode = .whileEditing
-            }
-            
-            // ปุ่ม Login
-            let loginAction = UIAlertAction(title: "Login", style: .default) { _ in
-                if let key = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-                    loginHandler(key)
-                } else {
-                    // หากไม่ได้กรอกแล้วกด Login ให้เรียกซ้ำ
-                    self.showKeyInputAlert(contactLink: contactLink, loginHandler: loginHandler, contactHandler: contactHandler)
-                }
-            }
-            alert.addAction(loginAction)
-            
-            // ปุ่ม Contact (แสดงเฉพาะเมื่อมีลิงก์ติดต่อ)
-            if !contactLink.isEmpty {
-                let contactAction = UIAlertAction(title: "Contact", style: .default) { _ in
-                    contactHandler()
-                }
-                alert.addAction(contactAction)
-            }
-            
-            // ปุ่ม Cancel / ออกจากแอป
-            let cancelAction = UIAlertAction(title: "Thoát", style: .destructive) { _ in
-                exit(0)
-            }
-            alert.addAction(cancelAction)
-            
-            rootVC.present(alert, animated: true)
+            hostingController = UIHostingController(rootView: view)
+            guard let hcView = hostingController?.view else { return }
+            hcView.backgroundColor = .clear
+            hcView.frame = rootVC.view.bounds
+            rootVC.view.addSubview(hcView)
         }
     }
     
-    // แสดงหน้าต่าง SwiftUI ปิดปรับปรุงระบบ (Maintenance)
+    // แสดงหน้าต่าง SwiftUI ปิดปรับปรุง
     public func showMaintenanceAlert(contactLink: String) {
         DispatchQueue.main.async {
             guard let rootVC = self.getTopViewController() else { return }

@@ -24,6 +24,20 @@ public class APIService {
         requestJSON(urlString: urlString, completion: completion)
     }
     
+    // --- [เพิ่มใหม่: สำหรับระบบ UDID Enrollment แบบแยกไฟล์] ---
+    
+    // 1. ขอ Session Token และโปรไฟล์ URL จาก request-udid.php
+    public func requestUDIDSession(projectId: Int, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        let urlString = "\(APIConfiguration.requestUDIDURL)?project_id=\(projectId)"
+        requestJSON(urlString: urlString, completion: completion)
+    }
+    
+    // 2. เช็กสถานะ UDID จาก check-udid-status.php
+    public func checkUDIDStatus(sessionToken: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        let urlString = "\(APIConfiguration.checkUDIDStatusURL)?token=\(sessionToken)"
+        requestJSON(urlString: urlString, completion: completion)
+    }
+    
     private func requestJSON(urlString: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
         guard let url = URL(string: urlString) else {
             let error = NSError(domain: "APIServiceError", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
